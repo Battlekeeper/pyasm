@@ -2,6 +2,10 @@ import ast
 
 variables = dict()
 std_functions_asm = dict()
+std_functions_asm["print_int"] = [
+    [],
+    "print_int:\nli $v0, 1\nsyscall\njr $ra",
+]
 std_functions_asm["print_float"] = [
     ['float_format: .asciiz "%f"'],
     """print_float:\nli   $v0, 2\nmov.s $f12, $f12\nla   $a0, float_format\nsyscall\njr   $ra""",
@@ -18,6 +22,30 @@ std_functions_asm["terminate"] = [
 std_functions = set()
 
 index = 0
+
+
+def get_node_register(node, reg_num):
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, int):
+            return "$t" + str(reg_num)
+        elif isinstance(node.value, float):
+            return "$f" + str(reg_num)
+    elif isinstance(node, ast.Name):
+        if variables[node.id] == "word":
+            return "$t" + str(reg_num)
+        elif variables[node.id] == "float":
+            return "$f" + str(reg_num)
+def load_node_register(node, reg):
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, int):
+            return f"li {reg}, {node.value}\n"
+        elif isinstance(node.value, float):
+            return f"li.s {reg}, {node.value}\n"
+    elif isinstance(node, ast.Name):
+        if variables[node.id] == "word":
+            return f"lw {reg}, {node.id}\n"
+        elif variables[node.id] == "float":
+            return f"l.s {reg}, {node.id}\n"
 
 
 class MIPSGenerator(ast.NodeVisitor):
@@ -65,7 +93,12 @@ class MIPSGenerator(ast.NodeVisitor):
         if variables.get(node.target.id) == None:
             variables[node.target.id] = data_type
             if isinstance(node.value, ast.Constant):
-                self.data += f"{node.target.id}: .{data_type} {node.value.value}\n"
+                if data_type == "word":
+                    self.data += f"{node.target.id}: .word {node.value.value}\n"
+                elif data_type == "float":
+                    self.data += f"{node.target.id}: .float {node.value.value}\n"
+                elif data_type == "asciiz":
+                    self.data += f"{node.target.id}: .asciiz \"{node.value.value}\"\n"
             else:
                 if data_type == "word":
                     self.data += f"{node.target.id}: .{data_type} 0\n"
@@ -76,142 +109,89 @@ class MIPSGenerator(ast.NodeVisitor):
 
         if isinstance(node.value, ast.BinOp):
             bin_node = node.value
+
+            
+
             if isinstance(bin_node.op, ast.Add):
-                reg1, reg2 = None, None
-                if isinstance(bin_node.left, ast.Constant):
-                    if isinstance(bin_node.left.value, int):
-                        reg1 = "$t0"
-                    else:
-                        reg1 = "$f0"
-                else:
-                    reg1 = "$t0" if variables[bin_node.left.id] == "word" else "$f0"
+                reg0, reg1 = get_node_register(bin_node.left,0), get_node_register(bin_node.right,1)
 
-                if isinstance(bin_node.right, ast.Constant):
-                    if isinstance(bin_node.right.value, int):
-                        reg2 = "$t1"
-                    else:
-                        reg2 = "$f1"
-                else:
-                    reg2 = "$t1" if variables[bin_node.right.id] == "word" else "$f1"
+                self.text += load_node_register(bin_node.left, reg0)
+                self.text += load_node_register(bin_node.right, reg1)
 
-                if isinstance(bin_node.left, ast.Constant):
-                    if isinstance(bin_node.left.value, int):
-                        self.text += f"li $t0, {bin_node.left.value}\n"
-                        if reg2 == "$f1":
-                            self.text += f"mtc1 $t0, $f0\n"
-                            self.text += f"cvt.s.w $f0, $f0\n"
-                            reg1 = "$f0"
-                    else:
-                        self.text += f"li.s $f0, {bin_node.left.value}\n"
-                else:
-                    if reg1 == "$t0":
-                        if reg2 == "$f1":
-                            self.text += f"lw $t0, {bin_node.left.id}\n"
-                            self.text += f"mtc1 $t0, $f0\n"
-                            self.text += f"cvt.s.w $f0, $f0\n"
-                            reg1 = "$f0"
-                        else:
-                            self.text += f"lw {reg1}, {bin_node.left.id}\n"
-                    else:
-                        self.text += f"l.s {reg1}, {bin_node.left.id}\n"
+                if (reg0.startswith("$t") and reg1.startswith("$t")):
+                    self.text += f"add $t2, {reg0}, {reg1}\n"
+                    self.text += f"sw $t2, {node.target.id}\n"
+                    if (variables[node.target.id] == "float"):
+                        self.text += f"mtc1 $t2, $f2\n"
+                        self.text += f"cvt.s.w $f2, $f2\n"
+                        self.text += f"s.s $f2, {node.target.id}\n"
+                elif (reg0.startswith("$f") and reg1.startswith("$f")):
+                    self.text += f"add.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+                    if (variables[node.target.id] == "word"):
+                        self.text += f"cvt.w.s $f2, $f2\n"
+                        self.text += f"mfc1 $t2, $f2\n"
+                        self.text += f"sw $t2, {node.target.id}\n"
+                elif (reg0[0:2] != reg1[0:1]):
+                    if (reg0[0:2] == "$t"):
+                        self.text += f"mtc1 $t0, $f0\n"
+                        self.text += f"cvt.s.w $f0, $f0\n"
+                        reg0 = "$f0"
+                    elif (reg1[0:2] == "$f"):
+                        self.text += f"mtc1 $t1, $f1\n"
+                        self.text += f"cvt.s.w $f1, $f1\n"
+                        reg1 = "$f1"
+                    self.text += f"add.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+            elif isinstance(bin_node.op, ast.Sub):
+                reg0, reg1 = get_node_register(bin_node.left,0), get_node_register(bin_node.right,1)
 
-                if isinstance(bin_node.right, ast.Constant):
-                    if isinstance(bin_node.right.value, int):
-                        self.text += f"li $t1, {bin_node.right.value}\n"
-                        if reg1 == "$f0":
-                            self.text += f"mtc1 $t1, $f1\n"
-                            self.text += f"cvt.s.w $f1, $f1\n"
-                            reg2 = "$f1"
-                    else:
-                        self.text += f"li.s $f1, {bin_node.right.value}\n"
-                else:
-                    if reg2 == "$t1":
-                        if reg1 == "$f0":
-                            self.text += f"lw $t1, {bin_node.right.id}\n"
-                            self.text += f"mtc1 $t1, $f1\n"
-                            self.text += f"cvt.s.w $f1, $f1\n"
-                            reg2 = "$f1"
-                        else:
-                            self.text += f"lw {reg2}, {bin_node.right.id}\n"
-                    else:
-                        self.text += f"l.s {reg2}, {bin_node.right.id}\n"
+                self.text += load_node_register(bin_node.left, reg0)
+                self.text += load_node_register(bin_node.right, reg1)
 
-                # add
-                result_reg = "$t2" if variables[node.target.id] == "word" else "$f2"
-                if result_reg == "$t2":
-                    self.text += f"add {result_reg}, {reg1}, {reg2}\n"
-                    self.text += f"sw {result_reg}, {node.target.id}\n"
-                else:
-                    self.text += f"add.s {result_reg}, {reg1}, {reg2}\n"
-                    self.text += f"swc1 {result_reg}, {node.target.id}\n"
-            if isinstance(bin_node.op, ast.Sub):
-                reg1, reg2 = None, None
-                if isinstance(bin_node.left, ast.Constant):
-                    if isinstance(bin_node.left.value, int):
-                        reg1 = "$t0"
-                    else:
-                        reg1 = "$f0"
-                else:
-                    reg1 = "$t0" if variables[bin_node.left.id] == "word" else "$f0"
+                if (reg0.startswith("$t") and reg1.startswith("$t")):
+                    self.text += f"sub $t2, {reg0}, {reg1}\n"
+                    self.text += f"sw $t2, {node.target.id}\n"
+                    if (variables[node.target.id] == "float"):
+                        self.text += f"mtc1 $t2, $f2\n"
+                        self.text += f"cvt.s.w $f2, $f2\n"
+                        self.text += f"s.s $f2, {node.target.id}\n"
+                elif (reg0.startswith("$f") and reg1.startswith("$f")):
+                    self.text += f"sub.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+                    if (variables[node.target.id] == "word"):
+                        self.text += f"cvt.w.s $f2, $f2\n"
+                        self.text += f"mfc1 $t2, $f2\n"
+                        self.text += f"sw $t2, {node.target.id}\n"
+                elif (reg0[0:2] != reg1[0:1]):
+                    if (reg0[0:2] == "$t"):
+                        self.text += f"mtc1 $t0, $f0\n"
+                        self.text += f"cvt.s.w $f0, $f0\n"
+                        reg0 = "$f0"
+                    elif (reg1[0:2] == "$f"):
+                        self.text += f"mtc1 $t1, $f1\n"
+                        self.text += f"cvt.s.w $f1, $f1\n"
+                        reg1 = "$f1"
+                    self.text += f"sub.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
 
-                if isinstance(bin_node.right, ast.Constant):
-                    if isinstance(bin_node.right.value, int):
-                        reg2 = "$t1"
-                    else:
-                        reg2 = "$f1"
+        if isinstance(node.value, ast.Name):
+            if variables[node.value.id] == "word":
+                self.text += f"lw $t0, {node.value.id}\n"
+                if (variables[node.target.id] == "float"):
+                    self.text += f"mtc1 $t0, $f0\n"
+                    self.text += f"cvt.s.w $f0, $f0\n"
+                    self.text += f"s.s $f0, {node.target.id}\n"
                 else:
-                    reg2 = "$t1" if variables[bin_node.right.id] == "word" else "$f1"
-
-                if isinstance(bin_node.left, ast.Constant):
-                    if isinstance(bin_node.left.value, int):
-                        self.text += f"li $t0, {bin_node.left.value}\n"
-                        if reg2 == "$f1":
-                            self.text += f"mtc1 $t0, $f0\n"
-                            self.text += f"cvt.s.w $f0, $f0\n"
-                            reg1 = "$f0"
-                    else:
-                        self.text += f"li.s $f0, {bin_node.left.value}\n"
+                    self.text += f"sw $t0, {node.target.id}\n"
+            elif variables[node.value.id] == "float":
+                self.text += f"l.s $t0, {node.value.id}\n"
+                if (variables[node.target.id] == "float"):
+                    self.text += f"cvt.w.s $f0, $f0\n"
+                    self.text += f"mfc1 $t0, $f0\n"
+                    self.text += f"sw $t0, {node.target.id}\n"
                 else:
-                    if reg1 == "$t0":
-                        if reg2 == "$f1":
-                            self.text += f"lw $t0, {bin_node.left.id}\n"
-                            self.text += f"mtc1 $t0, $f0\n"
-                            self.text += f"cvt.s.w $f0, $f0\n"
-                            reg1 = "$f0"
-                        else:
-                            self.text += f"lw {reg1}, {bin_node.left.id}\n"
-                    else:
-                        self.text += f"l.s {reg1}, {bin_node.left.id}\n"
-
-                if isinstance(bin_node.right, ast.Constant):
-                    if isinstance(bin_node.right.value, int):
-                        self.text += f"li $t1, {bin_node.right.value}\n"
-                        if reg1 == "$f0":
-                            self.text += f"mtc1 $t1, $f1\n"
-                            self.text += f"cvt.s.w $f1, $f1\n"
-                            reg2 = "$f1"
-                    else:
-                        self.text += f"li.s $f1, {bin_node.right.value}\n"
-                else:
-                    if reg2 == "$t1":
-                        if reg1 == "$f0":
-                            self.text += f"lw $t1, {bin_node.right.id}\n"
-                            self.text += f"mtc1 $t1, $f1\n"
-                            self.text += f"cvt.s.w $f1, $f1\n"
-                            reg2 = "$f1"
-                        else:
-                            self.text += f"lw {reg2}, {bin_node.right.id}\n"
-                    else:
-                        self.text += f"l.s {reg2}, {bin_node.right.id}\n"
-
-                # add
-                result_reg = "$t2" if variables[node.target.id] == "word" else "$f2"
-                if result_reg == "$t2":
-                    self.text += f"sub {result_reg}, {reg1}, {reg2}\n"
-                    self.text += f"sw {result_reg}, {node.target.id}\n"
-                else:
-                    self.text += f"sub.s {result_reg}, {reg1}, {reg2}\n"
-                    self.text += f"swc1 {result_reg}, {node.target.id}\n"
+                    self.text += f"s.s $t0, {node.target.id}\n"
         self.generic_visit(node)
 
     def visit_Expr(self, node):
@@ -232,7 +212,7 @@ class MIPSGenerator(ast.NodeVisitor):
 
 
 # Generate MIPS assembly code from AST
-tree = ast.parse(open("source.cmips").read())
+tree = ast.parse(open("source.pyasm").read())
 # print(ast.dump(tree))
 # print(variables)
 print()

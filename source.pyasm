@@ -1,0 +1,13 @@
+from std_lib import *
+
+#def add1(number):
+#    return number + 1
+
+def main():
+    avar:float = 23.0
+    bvar:float = 5.0
+    cvar:int = avar - bvar
+
+    print_newline()
+    print_int(cvar)
+    terminate()
