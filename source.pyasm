@@ -3,9 +3,17 @@ from std_lib import *
 #def add1(number):
 #    return number + 1
 
+# def main():
+#     i:int = 0
+#     while i < 10:
+#         print_int(i)
+#         i:int = i + 1
+#     terminate()
+
 def main():
-    i:int = 0
-    while i < 10:
-        print_int(i)
-        i:int = i + 1
+    avar:int = 4
+    bvar:float = 3.0
+    cvar:float = avar + bvar
+    print_float(cvar)
     terminate()
+    

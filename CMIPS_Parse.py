@@ -111,7 +111,7 @@ class MIPSGenerator(ast.NodeVisitor):
             bin_node = node.value
 
             
-
+            #TODO refactor to remove duplicate code
             if isinstance(bin_node.op, ast.Add):
                 reg0, reg1 = get_node_register(bin_node.left,0), get_node_register(bin_node.right,1)
 
