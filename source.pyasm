@@ -4,10 +4,8 @@ from std_lib import *
 #    return number + 1
 
 def main():
-    avar:float = 23.0
-    bvar:float = 5.0
-    cvar:int = avar - bvar
-
-    print_newline()
-    print_int(cvar)
+    i:int = 0
+    while i < 10:
+        print_int(i)
+        i:int = i + 1
     terminate()

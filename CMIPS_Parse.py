@@ -174,6 +174,70 @@ class MIPSGenerator(ast.NodeVisitor):
                         reg1 = "$f1"
                     self.text += f"sub.s $f2, {reg0}, {reg1}\n"
                     self.text += f"s.s $f2, {node.target.id}\n"
+            elif isinstance(bin_node.op, ast.Mult):
+                reg0, reg1 = get_node_register(bin_node.left,0), get_node_register(bin_node.right,1)
+
+                self.text += load_node_register(bin_node.left, reg0)
+                self.text += load_node_register(bin_node.right, reg1)
+
+                if (reg0.startswith("$t") and reg1.startswith("$t")):
+                    self.text += f"mul $t2, {reg0}, {reg1}\n"
+                    self.text += f"sw $t2, {node.target.id}\n"
+                    if (variables[node.target.id] == "float"):
+                        self.text += f"mtc1 $t2, $f2\n"
+                        self.text += f"cvt.s.w $f2, $f2\n"
+                        self.text += f"s.s $f2, {node.target.id}\n"
+                elif (reg0.startswith("$f") and reg1.startswith("$f")):
+                    self.text += f"mul.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+                    if (variables[node.target.id] == "word"):
+                        self.text += f"cvt.w.s $f2, $f2\n"
+                        self.text += f"mfc1 $t2, $f2\n"
+                        self.text += f"sw $t2, {node.target.id}\n"
+                elif (reg0[0:2] != reg1[0:1]):
+                    if (reg0[0:2] == "$t"):
+                        self.text += f"mtc1 $t0, $f0\n"
+                        self.text += f"cvt.s.w $f0, $f0\n"
+                        reg0 = "$f0"
+                    elif (reg1[0:2] == "$f"):
+                        self.text += f"mtc1 $t1, $f1\n"
+                        self.text += f"cvt.s.w $f1, $f1\n"
+                        reg1 = "$f1"
+                    self.text += f"mul.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+            elif isinstance(bin_node.op, ast.Div):
+                reg0, reg1 = get_node_register(bin_node.left,0), get_node_register(bin_node.right,1)
+
+                self.text += load_node_register(bin_node.left, reg0)
+                self.text += load_node_register(bin_node.right, reg1)
+
+                if (reg0.startswith("$t") and reg1.startswith("$t")):
+                    self.text += f"div $t2, {reg0}, {reg1}\n"
+                    self.text += f"mflo $t2\n"
+                    self.text += f"sw $t2, {node.target.id}\n"
+                    if (variables[node.target.id] == "float"):
+                        self.text += f"mtc1 $t2, $f2\n"
+                        self.text += f"cvt.s.w $f2, $f2\n"
+                        self.text += f"s.s $f2, {node.target.id}\n"
+                elif (reg0.startswith("$f") and reg1.startswith("$f")):
+                    self.text += f"div.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+                    if (variables[node.target.id] == "word"):
+                        self.text += f"cvt.w.s $f2, $f2\n"
+                        self.text += f"mfc1 $t2, $f2\n"
+                        self.text += f"sw $t2, {node.target.id}\n"
+                elif (reg0[0:2] != reg1[0:1]):
+                    if (reg0[0:2] == "$t"):
+                        self.text += f"mtc1 $t0, $f0\n"
+                        self.text += f"cvt.s.w $f0, $f0\n"
+                        reg0 = "$f0"
+                    elif (reg1[0:2] == "$f"):
+                        self.text += f"mtc1 $t1, $f1\n"
+                        self.text += f"cvt.s.w $f1, $f1\n"
+                        reg1 = "$f1"
+                    self.text += f"div.s $f2, {reg0}, {reg1}\n"
+                    self.text += f"s.s $f2, {node.target.id}\n"
+
 
         if isinstance(node.value, ast.Name):
             if variables[node.value.id] == "word":
@@ -213,15 +277,11 @@ class MIPSGenerator(ast.NodeVisitor):
 
 # Generate MIPS assembly code from AST
 tree = ast.parse(open("source.pyasm").read())
-# print(ast.dump(tree))
-# print(variables)
 print()
 print(ast.dump(tree))
 print()
 mips_generator = MIPSGenerator()
 mips_assembly = mips_generator.visit(tree, True)
-print()
 print(variables)
 print()
-print(mips_assembly)
 open("test.s", "w").write(mips_assembly.encode("ascii", "ignore").decode())

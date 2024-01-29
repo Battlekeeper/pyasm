@@ -1,32 +1,20 @@
 .data
-avar: .float 23.0
-bvar: .float 5.0
-cvar: .word 0
-strvar: .asciiz "Hello World!"
+i: .word 0
 float_format: .asciiz "%f"
 .text
 .globl main
+terminate:
+li   $v0, 10
+syscall
 print_int:
 li $v0, 1
 syscall
 jr $ra
-print_newline:
-li   $v0, 11
-li   $a0, '\n'
-syscall
-jr   $ra
-terminate:
-li   $v0, 10
-syscall
 main:
-l.s $f0, avar
-l.s $f1, bvar
-sub.s $f2, $f0, $f1
-s.s $f2, cvar
-cvt.w.s $f2, $f2
-mfc1 $t2, $f2
-sw $t2, cvar
-jal print_newline
-lw $a0, cvar
+lw $a0, i
 jal print_int
+lw $t0, i
+li $t1, 1
+add $t2, $t0, $t1
+sw $t2, i
 jal terminate
