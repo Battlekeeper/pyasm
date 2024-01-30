@@ -1,8 +1,15 @@
 .data
 float_format: .asciiz "%f"
 
+
+
 .text
 .globl main
+print_newline:
+li   $v0, 11
+li   $a0, '\n'
+syscall
+jr   $ra
 print_int:
 li $v0, 1
 syscall
@@ -13,11 +20,8 @@ mov.s $f12, $f12
 la   $a0, float_format
 syscall
 jr   $ra
-print_newline:
-li   $v0, 11
-li   $a0, '\n'
-syscall
-jr   $ra
+
+
 
 factorial:
 addi $sp, $sp, -20 # allocate stack
@@ -54,6 +58,8 @@ lw $fp, 16($sp) # restore old frame pointer
 lw $ra, 12($sp) # restore return address
 addi $sp, $sp, 20 # deallocate stack
 jr $ra # return
+
+
 harmonic:
 addi $sp, $sp, -24 # allocate stack
 sw $fp, 20($sp) # save old frame pointer
@@ -97,6 +103,8 @@ lw $fp, 20($sp) # restore old frame pointer
 lw $ra, 16($sp) # restore return address
 addi $sp, $sp, 24 # deallocate stack
 jr $ra # return
+
+
 main:
 addi $sp, $sp, -24 # allocate stack
 sw $fp, 20($sp) # save old frame pointer
@@ -127,3 +135,5 @@ lw $fp, 20($sp) # restore old frame pointer
 lw $ra, 16($sp) # restore return address
 addi $sp, $sp, 24 # deallocate stack
 jr $ra # return
+
+

@@ -371,7 +371,7 @@ def handle_If(node: ast.If, variables: dict, returnlabel):
         assembly_text += f"ifstmt{ifstatementId}:\n"
         ifstatementId += 1
 
-def handle_function(node: ast.FunctionDef):
+def handle_Function(node: ast.FunctionDef):
     global assembly_text
     stack_size = 8
 
@@ -419,6 +419,9 @@ def handle_function(node: ast.FunctionDef):
     assembly_text += f"lw $ra, {full_stack_size - 8}($sp) # restore return address\n" #restore return address
     assembly_text += f"addi $sp, $sp, {full_stack_size} # deallocate stack\n" #deallocate stack
     assembly_text += f"jr $ra # return\n"
+    assembly_text += f"\n\n"
+
+
 
 
 def handle_Return(node: ast.Return, variables: dict, returnlabel):
@@ -476,7 +479,7 @@ for node in tree.body:
         for name in node.names:
             pass
     elif isinstance(node, ast.FunctionDef):
-        handle_function(node)
+        handle_Function(node)
         pass
 
 
@@ -485,9 +488,9 @@ assembly_data = ".data\n"
 for func in std_functions:
     for line in std_functions_asm[func][0]:
         assembly_data += line + "\n"
-assembly_data += "\n.text\n.globl main\n"
+assembly_data += "\n\n\n.text\n.globl main\n"
 for func in std_functions:
     assembly_data += std_functions_asm[func][1] + "\n"
+assembly_data += "\n\n"
 assembly_data += "\n" + assembly_text
-#print(assembly_data)
 open("source.s", "w").write(assembly_data)
