@@ -7,3 +7,6 @@
     * Look into calling a function with more than 4 arguments (use stack maybe???)
   * ✅implement return data
     * test with floats
+* move std lib to seperate files
+  * convert to pyasm (maybe)
+    * syscall stdlib command
