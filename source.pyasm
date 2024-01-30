@@ -4,11 +4,9 @@ def main():
     avar:float = 7.0
     bvar:float = 2.0
     cvar:float = avar / bvar
-    if cvar > 3:
-        tst:float = 69.0
-        print_float(tst)
-        print_newline()
-    print_float(cvar)
+    dvar:int = cvar
+    print_int(dvar)
     print_newline()
+    print_float(cvar)
     terminate()
     

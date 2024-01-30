@@ -140,12 +140,26 @@ def handle_AnnAssign(node: ast.AnnAssign, variables: dict):
         handle_binop(node.value, node ,variables)
     elif isinstance(node.value, ast.Name):
         if variables[node.target.id][0] == "int":
-            assembly_text += f"lw $t0, {variables[node.value.id][1]}($fp)\n"
-            assembly_text += f"sw $t0, {variables[node.target.id][1]}($fp)\n"
+            if variables[node.value.id][0] == "int":
+                assembly_text += f"lw $t0, {variables[node.value.id][1]}($fp)\n"
+                assembly_text += f"sw $t0, {variables[node.target.id][1]}($fp)\n"
+            elif variables[node.value.id][0] == "float":
+                assembly_text += f"lwc1 $f0, {variables[node.value.id][1]}($fp)\n"
+                #convert to int
+                assembly_text += f"trunc.w.s $f0, $f0\n"
+                assembly_text += f"mfc1 $t0, $f0\n"
+                assembly_text += f"sw $t0, {variables[node.target.id][1]}($fp)\n"
         elif variables[node.target.id][0] == "float":
-            assembly_text += f"lwc1 $f0, {variables[node.value.id][1]}($fp)\n"
-            assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
+            if variables[node.value.id][0] == "float":
+                assembly_text += f"lwc1 $f0, {variables[node.value.id][1]}($fp)\n"
+                assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
+            elif variables[node.value.id][0] == "int":
+                assembly_text += f"lw $t0, {variables[node.value.id][1]}($fp)\n"
+                assembly_text += f"mtc1 $t0, $f0\n"
+                assembly_text += f"cvt.s.w $f0, $f0\n"
+                assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
     elif isinstance(node.value, ast.Call):
+        raise NotImplementedError("This functionality is not implemented yet.")
         if node.value.func.id in std_functions:
             assembly_text += f"jal {node.value.func.id}\n"
             std_functions.add(node.value.func.id)
@@ -179,6 +193,7 @@ def handle_If(node: ast.If, variables: dict):
 
         assembly_text += f"ifstmt{ifstatementId}:\n"
         ifstatementId += 1
+
 def handle_function(node: ast.FunctionDef):
     global assembly_text
     stack_size = 8
