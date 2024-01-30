@@ -1,16 +1,18 @@
 from std_lib import *
 
+def factorial(n: int) -> int:
+    if n == 0:
+        return 1
+    if n != 0:
+        next: int = n - 1
+        r: int = factorial(next)
+        r: int = r * n
+        return r
 
-# Compute factorial of 50
 def main():
-    index: int = 1
-    total: int = 1
+    n: int = 4
+    r: int = factorial(n)
+    print_newline()
+    print_int(r)
 
-    while index <= 50:
-        total: int = total * index
-        print_int(total)
-        print_newline()
-        index: int = 1 + index
-    print_newline()
-    print_newline()
-    print_int(total)
+

@@ -199,16 +199,36 @@ def handle_AnnAssign(node: ast.AnnAssign, variables: dict):
                 assembly_text += f"cvt.s.w $f0, $f0\n"
                 assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
     elif isinstance(node.value, ast.Call):
-        raise NotImplementedError("This functionality is not implemented yet.")
-        if node.value.func.id in std_functions:
+        if node.value.func.id in std_functions_asm:
+            regaddr = 0
+            for arg in node.value.args:
+                if isinstance(arg, ast.Name):
+                    if variables[arg.id][0] == "int":
+                        assembly_text += f"lw $a{regaddr}, {variables[arg.id][1]}($fp)\n"
+                    elif variables[arg.id][0] == "float":
+                        assembly_text += f"lwc1 $f{regaddr + 12}, {variables[arg.id][1]}($fp)\n"
+                regaddr += 1
             assembly_text += f"jal {node.value.func.id}\n"
             std_functions.add(node.value.func.id)
+        else:
+            for arg in node.value.args:
+                if isinstance(arg, ast.Name):
+                    if variables[arg.id][0] == "int":
+                        assembly_text += f"lw $a0, {variables[arg.id][1]}($fp)\n"
+                    elif variables[arg.id][0] == "float":
+                        assembly_text += f"lwc1 $f12, {variables[arg.id][1]}($fp)\n"
+            assembly_text += f"jal {node.value.func.id}\n"
+        if (node.annotation.id == "int"):
+            assembly_text += f"sw $v0, {variables[node.target.id][1]}($fp)\n"
+        elif (node.annotation.id == "float"):
+            assembly_text += f"mtc1 $v0, %f0\n"
+            assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
 
-def handle_While(node: ast.While, variables: dict):
+def handle_While(node: ast.While, variables: dict, returnlabel):
     global assembly_text
     global whileloopid
     assembly_text += f"whileloop{whileloopid}:\n"
-    handle_Body(node, variables)
+    handle_Body(node, variables, returnlabel)
     if isinstance(node.test, ast.Compare):
         isFloat = False
         if isinstance(node.test.left, ast.Constant):
@@ -223,6 +243,7 @@ def handle_While(node: ast.While, variables: dict):
         elif isinstance(node.test.comparators[0], ast.Name):
             if variables[node.test.comparators[0].id][0] == "float":
                 isFloat = True
+       
         if not isFloat:
             if isinstance(node.test.left, ast.Constant):
                 assembly_text += f"li $t0, {node.test.left.value}\n"
@@ -233,7 +254,6 @@ def handle_While(node: ast.While, variables: dict):
             else:
                 assembly_text += f"lw $t1, {variables[node.test.comparators[0].id][1]}($fp)\n"
 
-            
             if isinstance(node.test.ops[0], ast.Gt):
                 assembly_text += f"bgt $t0, $t1, whileloop{whileloopid}\n"
             elif isinstance(node.test.ops[0], ast.GtE):
@@ -278,7 +298,7 @@ def handle_While(node: ast.While, variables: dict):
 
     whileloopid += 1
 
-def handle_If(node: ast.If, variables: dict):
+def handle_If(node: ast.If, variables: dict, returnlabel):
     global assembly_text
     global ifstatementId
     if isinstance(node.test, ast.Compare):
@@ -346,7 +366,7 @@ def handle_If(node: ast.If, variables: dict):
                 assembly_text += f"c.eq.s $f0, $f1\n"
                 assembly_text += f"bc1t ifstmt{ifstatementId}\n"
 
-        handle_Body(node, variables)
+        handle_Body(node, variables, returnlabel)
 
         assembly_text += f"ifstmt{ifstatementId}:\n"
         ifstatementId += 1
@@ -354,10 +374,14 @@ def handle_If(node: ast.If, variables: dict):
 def handle_function(node: ast.FunctionDef):
     global assembly_text
     stack_size = 8
+
+    variables = dict()
+    returnlabel = f"return{node.name}"
+
     for arg in node.args.args:
         variables[arg.arg] = arg.annotation.id
 
-    variables = allocate_variables(node)
+    variables.update(allocate_variables(node))
 
     for name in variables:
         if variables[name] == "int" or variables[name] == "float":
@@ -378,7 +402,17 @@ def handle_function(node: ast.FunctionDef):
             stack_size -= 4
 
     #handle function body
-    handle_Body(node,variables)
+    for index, arg in enumerate(node.args.args):
+        var = variables[arg.arg]
+        if var[0] == "int":
+            assembly_text += f"sw $a{index}, {var[1]}($fp) # store argument {index}\n"
+        elif var[0] == "float":
+            assembly_text += f"swc1 $f{index + 12}, {var[1]}($fp) # store argument {index}\n"
+    
+    handle_Body(node,variables, returnlabel)
+
+    #set return variables if they exist
+    assembly_text += f"{returnlabel}:\n"
 
     #clear stack and return
     assembly_text += f"lw $fp, {full_stack_size - 4}($sp) # restore old frame pointer\n" #restore old frame pointer
@@ -386,7 +420,24 @@ def handle_function(node: ast.FunctionDef):
     assembly_text += f"addi $sp, $sp, {full_stack_size} # deallocate stack\n" #deallocate stack
     assembly_text += f"jr $ra # return\n"
 
-def handle_Body(node, variables):
+
+def handle_Return(node: ast.Return, variables: dict, returnlabel):
+    global assembly_text
+    if isinstance(node.value, ast.Constant):
+        if isinstance(node.value.value, int):
+            assembly_text += f"li $v0, {node.value.value}\n"
+        elif isinstance(node.value.value, float):
+            assembly_text += f"li.s $f0, {node.value.value}\n"
+            assembly_text += f"mfc1 $v0, $f0\n"
+    elif isinstance(node.value, ast.Name):
+        if variables[node.value.id][0] == "int":
+            assembly_text += f"lw $v0, {variables[node.value.id][1]}($fp)\n"
+        elif variables[node.value.id][0] == "float":
+            assembly_text += f"lwc1 $f0, {variables[node.value.id][1]}($fp)\n"
+            assembly_text += f"mfc1 $v0, $f0\n"
+    assembly_text += f"j {returnlabel}\n"
+
+def handle_Body(node, variables, returnlabel):
     global assembly_text
     for body_node in node.body:
         if isinstance(body_node, ast.AnnAssign):
@@ -404,10 +455,21 @@ def handle_Body(node, variables):
                         regaddr += 1
                     assembly_text += f"jal {body_node.value.func.id}\n"
                     std_functions.add(body_node.value.func.id)
+                else:
+                    #TODO: handle function arguments
+                    for arg in body_node.value.args:
+                        if isinstance(arg, ast.Name):
+                            if variables[arg.id][0] == "int":
+                                assembly_text += f"lw $a0, {variables[arg.id][1]}($fp)\n"
+                            elif variables[arg.id][0] == "float":
+                                assembly_text += f"lwc1 $f12, {variables[arg.id][1]}($fp)\n"
+                    assembly_text += f"jal {body_node.value.func.id}\n"
         elif isinstance(body_node, ast.While):
-            handle_While(body_node, variables)
+            handle_While(body_node, variables, returnlabel)
         elif isinstance(body_node, ast.If):
-            handle_If(body_node, variables)
+            handle_If(body_node, variables, returnlabel)
+        elif isinstance(body_node, ast.Return):
+            handle_Return(body_node, variables, returnlabel)
 
 for node in tree.body:
     if isinstance(node, ast.ImportFrom):
@@ -427,5 +489,5 @@ assembly_data += "\n.text\n.globl main\n"
 for func in std_functions:
     assembly_data += std_functions_asm[func][1] + "\n"
 assembly_data += "\n" + assembly_text
-print(assembly_data)
+#print(assembly_data)
 open("source.s", "w").write(assembly_data)
