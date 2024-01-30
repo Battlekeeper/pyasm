@@ -221,7 +221,7 @@ def handle_AnnAssign(node: ast.AnnAssign, variables: dict):
         if (node.annotation.id == "int"):
             assembly_text += f"sw $v0, {variables[node.target.id][1]}($fp)\n"
         elif (node.annotation.id == "float"):
-            assembly_text += f"mtc1 $v0, %f0\n"
+            assembly_text += f"mtc1 $v0, $f0\n"
             assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
 
 def handle_While(node: ast.While, variables: dict, returnlabel):
