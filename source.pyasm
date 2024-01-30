@@ -1,10 +1,17 @@
 from std_lib import *
 
-def main():
-    avar:float = 0.0
+# Compute factorial of 10
 
-    while avar < 10.0:
-        print_float(avar)
+def main():
+    index: float = 1.0
+    total: float = 1.0
+
+    while index <= 10.0:
+        total: float = total * index
+        print_float(total)
         print_newline()
-        tmp:float = 1.0
-        avar:float = avar + tmp
+        tmp: float = 1.0
+        index: float = index + tmp
+    print_newline()
+    print_newline()
+    print_float(total)
