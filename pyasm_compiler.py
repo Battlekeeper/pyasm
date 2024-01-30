@@ -55,8 +55,16 @@ def handle_binop(node: ast.BinOp, varnode:ast.AnnAssign, variables: dict):
         right_type = variables[node.right.id][0]
 
     if left_type == "int" and right_type == "int":
-        assembly_text += f"lw $t0, {variables[node.left.id][1]}($fp)\n"
-        assembly_text += f"lw $t1, {variables[node.right.id][1]}($fp)\n"
+        if (isinstance(node.left, ast.Constant)):
+            assembly_text += f"li $t0, {node.left.value}\n"
+        else:
+            assembly_text += f"lw $t0, {variables[node.left.id][1]}($fp)\n"
+
+        if (isinstance(node.right, ast.Constant)):
+            assembly_text += f"li $t1, {node.right.value}\n"
+        else:
+            assembly_text += f"lw $t1, {variables[node.right.id][1]}($fp)\n"
+        
         if isinstance(node.op, ast.Add):
             assembly_text += f"add $t0, $t0, $t1\n"
         elif isinstance(node.op, ast.Sub):
@@ -74,8 +82,17 @@ def handle_binop(node: ast.BinOp, varnode:ast.AnnAssign, variables: dict):
             assembly_text += f"cvt.s.w $f0, $f0\n"
             assembly_text += f"swc1 $f0, {variables[varnode.target.id][1]}($fp)\n"
     elif left_type == "float" and right_type == "float":
-        assembly_text += f"lwc1 $f0, {variables[node.left.id][1]}($fp)\n"
-        assembly_text += f"lwc1 $f1, {variables[node.right.id][1]}($fp)\n"
+        if (isinstance(node.left, ast.Constant)):
+            assembly_text += f"li.s $f0, {node.left.value}\n"
+        else:
+            assembly_text += f"lwc1 $f0, {variables[node.left.id][1]}($fp)\n"
+
+        if (isinstance(node.right, ast.Constant)):
+            assembly_text += f"li.s $f1, {node.right.value}\n"
+        else:
+            assembly_text += f"lwc1 $f1, {variables[node.right.id][1]}($fp)\n"
+        
+        
         if isinstance(node.op, ast.Add):
             assembly_text += f"add.s $f0, $f0, $f1\n"
         elif isinstance(node.op, ast.Sub):
@@ -91,10 +108,22 @@ def handle_binop(node: ast.BinOp, varnode:ast.AnnAssign, variables: dict):
         else:
             assembly_text += f"swc1 $f0, {variables[varnode.target.id][1]}($fp)\n"
     elif left_type == "int" and right_type == "float":
-        assembly_text += f"lw $t0, {variables[node.left.id][1]}($fp)\n"
+        if (isinstance(node.left, ast.Constant)):
+            assembly_text += f"li $t0, {node.left.value}\n"
+        else:
+            assembly_text += f"lw $t0, {variables[node.left.id][1]}($fp)\n"
         assembly_text += f"mtc1 $t0, $f0\n"
         assembly_text += f"cvt.s.w $f0, $f0\n"
-        assembly_text += f"lwc1 $f1, {variables[node.right.id][1]}($fp)\n"
+
+
+
+        if (isinstance(node.right, ast.Constant)):
+            assembly_text += f"li.s $f1, {node.right.value}\n"
+        else:
+            assembly_text += f"lwc1 $f1, {variables[node.right.id][1]}($fp)\n"
+
+
+
         if isinstance(node.op, ast.Add):
             assembly_text += f"add.s $f0, $f0, $f1\n"
         elif isinstance(node.op, ast.Sub):
@@ -110,8 +139,17 @@ def handle_binop(node: ast.BinOp, varnode:ast.AnnAssign, variables: dict):
         else:
             assembly_text += f"swc1 $f0, {variables[varnode.target.id][1]}($fp)\n"
     elif left_type == "float" and right_type == "int":
-        assembly_text += f"lwc1 $f0, {variables[node.left.id][1]}($fp)\n"
-        assembly_text += f"lw $t0, {variables[node.right.id][1]}($fp)\n"
+        if (isinstance(node.right, ast.Constant)):
+            assembly_text += f"li.s $f0, {node.right.value}\n"
+        else:
+            assembly_text += f"lwc1 $f0, {variables[node.right.id][1]}($fp)\n"
+
+        
+        if (isinstance(node.right, ast.Constant)):
+            assembly_text += f"li $t0, {node.right.value}\n"
+        else:
+            assembly_text += f"lw $t0, {variables[node.right.id][1]}($fp)\n"
+        
         assembly_text += f"mtc1 $t0, $f1\n"
         assembly_text += f"cvt.s.w $f1, $f1\n"
         if isinstance(node.op, ast.Add):

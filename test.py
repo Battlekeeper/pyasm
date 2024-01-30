@@ -8,35 +8,77 @@ Module(
             ),
             body=[
                 AnnAssign(
-                    target=Name(id="avar", ctx=Store()),
+                    target=Name(id="index", ctx=Store()),
                     annotation=Name(id="float", ctx=Load()),
-                    value=Constant(value=0.0),
+                    value=Constant(value=1.0),
+                    simple=1,
+                ),
+                AnnAssign(
+                    target=Name(id="total", ctx=Store()),
+                    annotation=Name(id="float", ctx=Load()),
+                    value=Constant(value=1.0),
                     simple=1,
                 ),
                 While(
                     test=Compare(
-                        left=Name(id="avar", ctx=Load()),
-                        ops=[Lt()],
+                        left=Name(id="index", ctx=Load()),
+                        ops=[LtE()],
                         comparators=[Constant(value=10.0)],
                     ),
                     body=[
+                        AnnAssign(
+                            target=Name(id="total", ctx=Store()),
+                            annotation=Name(id="float", ctx=Load()),
+                            value=BinOp(
+                                left=Name(id="total", ctx=Load()),
+                                op=Mult(),
+                                right=Name(id="index", ctx=Load()),
+                            ),
+                            simple=1,
+                        ),
                         Expr(
                             value=Call(
                                 func=Name(id="print_float", ctx=Load()),
-                                args=[Name(id="avar", ctx=Load())],
+                                args=[Name(id="total", ctx=Load())],
                                 keywords=[],
                             )
                         ),
-                        Assign(
-                            targets=[Name(id="avar", ctx=Store())],
+                        Expr(
+                            value=Call(
+                                func=Name(id="print_newline", ctx=Load()),
+                                args=[],
+                                keywords=[],
+                            )
+                        ),
+                        AnnAssign(
+                            target=Name(id="index", ctx=Store()),
+                            annotation=Name(id="float", ctx=Load()),
                             value=BinOp(
-                                left=Name(id="avar", ctx=Load()),
+                                left=Name(id="index", ctx=Load()),
                                 op=Add(),
                                 right=Constant(value=1.0),
                             ),
+                            simple=1,
                         ),
                     ],
                     orelse=[],
+                ),
+                Expr(
+                    value=Call(
+                        func=Name(id="print_newline", ctx=Load()), args=[], keywords=[]
+                    )
+                ),
+                Expr(
+                    value=Call(
+                        func=Name(id="print_newline", ctx=Load()), args=[], keywords=[]
+                    )
+                ),
+                Expr(
+                    value=Call(
+                        func=Name(id="print_float", ctx=Load()),
+                        args=[Name(id="total", ctx=Load())],
+                        keywords=[],
+                    )
                 ),
             ],
             decorator_list=[],

@@ -1,7 +1,7 @@
 from std_lib import *
 
-# Compute factorial of 10
 
+# Compute factorial of 10
 def main():
     index: float = 1.0
     total: float = 1.0
@@ -10,8 +10,7 @@ def main():
         total: float = total * index
         print_float(total)
         print_newline()
-        tmp: float = 1.0
-        index: float = index + tmp
+        index: float = 1.0 + index
     print_newline()
     print_newline()
     print_float(total)
