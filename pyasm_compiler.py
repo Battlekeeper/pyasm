@@ -1,4 +1,21 @@
 import ast
+import os
+import sys
+
+if len(sys.argv) < 2:
+    print("Usage: python3 pyasm_compiler.py <input_file> <output_file>")
+    exit(1)
+input_file = sys.argv[1]
+output_file = "out.s"
+if len(sys.argv) == 3:
+    output_file = sys.argv[2]
+
+if not os.path.isfile(input_file):
+    print(f"Error: {input_file} does not exist")
+    exit(1)
+
+
+
 
 variables = dict()
 std_functions_asm = dict()
@@ -24,7 +41,7 @@ ifstatementId = 0
 whileloopid = 0
 
 # Generate MIPS assembly code from AST
-tree = ast.parse(open("source.pyasm").read())
+tree = ast.parse(open(input_file).read())
 print("\n" + ast.dump(tree) + "\n")
 
 assembly_text = ""
@@ -493,4 +510,26 @@ for func in std_functions:
     assembly_data += std_functions_asm[func][1] + "\n"
 assembly_data += "\n\n"
 assembly_data += "\n" + assembly_text
-open("source.s", "w").write(assembly_data)
+
+# ========================= Optimizations ========================= #
+
+asm = assembly_data.split("\n")
+asm = [line.strip() for line in asm]
+for i in range(0,len(asm)):
+    if (i + 1 == len(asm)):
+        break
+    next = asm[i + 1]
+    op = asm[i]
+    parsed_next = next.split(" ")
+    parsed = op.split(" ")
+    if (parsed[0] == "swc1" and parsed_next[0] == "lwc1"):
+        if (parsed[1] == parsed_next[1] and parsed[2] == parsed_next[2]):
+            asm[i + 1] = "nop"
+    elif (parsed[0] == "lw" and parsed_next[0] == "sw"):
+        if (parsed[1] == parsed_next[1] and parsed[2] == parsed_next[2]):
+            asm[i + 1] = "nop"
+
+# removes nop operations
+asm = [line for line in asm if line != "nop"]
+
+open(output_file, "w").write("\n".join(asm))
