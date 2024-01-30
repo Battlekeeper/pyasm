@@ -14,13 +14,6 @@ mov.s $f12, $f12
 la   $a0, float_format
 syscall
 jr   $ra
-terminate:
-li   $v0, 10
-syscall
-print_int:
-li $v0, 1
-syscall
-jr $ra
 
 main:
 addi $sp, $sp, -24 # allocate stack
@@ -35,13 +28,30 @@ lwc1 $f0, 12($fp)
 lwc1 $f1, 8($fp)
 div.s $f0, $f0, $f1
 swc1 $f0, 4($fp)
-lwc1 $f0, 4($fp)
-trunc.w.s $f0, $f0
-mfc1 $t0, $f0
-sw $t0, 0($fp)
-lw $a0, 0($fp)
-jal print_int
-jal print_newline
 lwc1 $f12, 4($fp)
 jal print_float
-jal terminate
+jal print_newline
+lwc1 $f0, 4($fp)
+li.s $f1, 3.6
+c.lt.s $f0, $f1
+bc1f ifstmt0
+lwc1 $f12, 4($fp)
+jal print_float
+jal print_newline
+ifstmt0:
+lwc1 $f0, 4($fp)
+li.s $f1, 3.5
+c.eq.s $f0, $f1
+bc1f ifstmt1
+li.s $f0, 69.0
+swc1 $f0, 0($fp)
+lwc1 $f12, 0($fp)
+jal print_float
+jal print_newline
+ifstmt1:
+lwc1 $f12, 4($fp)
+jal print_float
+lw $fp, 20($sp) # restore old frame pointer
+lw $ra, 16($sp) # restore return address
+addi $sp, $sp, 24 # deallocate stack
+jr $ra # return

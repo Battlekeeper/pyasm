@@ -21,6 +21,7 @@ std_functions_asm["terminate"] = [
 
 std_functions = set()
 ifstatementId = 0
+whileloopid = 0
 
 # Generate MIPS assembly code from AST
 tree = ast.parse(open("source.pyasm").read())
@@ -127,6 +128,7 @@ def handle_binop(node: ast.BinOp, varnode:ast.AnnAssign, variables: dict):
             assembly_text += f"sw $t0, {variables[varnode.target.id][1]}($fp)\n"
         else:
             assembly_text += f"swc1 $f0, {variables[varnode.target.id][1]}($fp)\n"
+
 def handle_AnnAssign(node: ast.AnnAssign, variables: dict):
     global assembly_text
     if isinstance(node.value, ast.Constant):
@@ -166,28 +168,77 @@ def handle_AnnAssign(node: ast.AnnAssign, variables: dict):
 
 def handle_While(node: ast.While, variables: dict):
     global assembly_text
+    global whileloopid
+    assembly_text += f"whileloop{whileloopid}:\n"
+
 
 def handle_If(node: ast.If, variables: dict):
     global assembly_text
     global ifstatementId
     if isinstance(node.test, ast.Compare):
-        assembly_text += f"lw $t0, {variables[node.test.left.id][1]}($fp)\n"
+        isFloat = False
+        if isinstance(node.test.left, ast.Constant):
+            if isinstance(node.test.left.value, float):
+                isFloat = True
+        elif isinstance(node.test.left, ast.Name):
+            if variables[node.test.left.id][0] == "float":
+                isFloat = True
         if isinstance(node.test.comparators[0], ast.Constant):
-            assembly_text += f"li $t1, {node.test.comparators[0].value}\n"
+            if isinstance(node.test.comparators[0].value, float):
+                isFloat = True
+        elif isinstance(node.test.comparators[0], ast.Name):
+            if variables[node.test.comparators[0].id][0] == "float":
+                isFloat = True
+        if not isFloat:
+            if isinstance(node.test.left, ast.Constant):
+                assembly_text += f"li $t0, {node.test.left.value}\n"
+            else:
+                assembly_text += f"lw $t0, {variables[node.test.left.id][1]}($fp)\n"
+            if isinstance(node.test.comparators[0], ast.Constant):
+                assembly_text += f"li $t1, {node.test.comparators[0].value}\n"
+            else:
+                assembly_text += f"lw $t1, {variables[node.test.comparators[0].id][1]}($fp)\n"
+            if isinstance(node.test.ops[0], ast.Gt):
+                assembly_text += f"ble $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.GtE):
+                assembly_text += f"blt $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.Lt):
+                assembly_text += f"bte $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.LtE):
+                assembly_text += f"bgt $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.Eq):
+                assembly_text += f"bne $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.NotEq):
+                assembly_text += f"beq $t0, $t1, ifstmt{ifstatementId}\n"
         else:
-            assembly_text += f"lw $t1, {variables[node.test.comparators[0].id][1]}($fp)\n"
-        if isinstance(node.test.ops[0], ast.Gt):
-            assembly_text += f"bgt $t0, $t1, ifstmt{ifstatementId}\n"
-        elif isinstance(node.test.ops[0], ast.GtE):
-            assembly_text += f"bge $t0, $t1, ifstmt{ifstatementId}\n"
-        elif isinstance(node.test.ops[0], ast.Lt):
-            assembly_text += f"blt $t0, $t1, ifstmt{ifstatementId}\n"
-        elif isinstance(node.test.ops[0], ast.LtE):
-            assembly_text += f"ble $t0, $t1, ifstmt{ifstatementId}\n"
-        elif isinstance(node.test.ops[0], ast.Eq):
-            assembly_text += f"beq $t0, $t1, ifstmt{ifstatementId}\n"
-        elif isinstance(node.test.ops[0], ast.NotEq):
-            assembly_text += f"bne $t0, $t1, ifstmt{ifstatementId}\n"
+            if isinstance(node.test.left, ast.Constant):
+                assembly_text += f"li.s $f0, {node.test.left.value}\n"
+            else:
+                assembly_text += f"lwc1 $f0, {variables[node.test.left.id][1]}($fp)\n"
+            if isinstance(node.test.comparators[0], ast.Constant):
+                assembly_text += f"li.s $f1, {node.test.comparators[0].value}\n"
+            else:
+                assembly_text += f"lwc1 $f1, {variables[node.test.comparators[0].id][1]}($fp)\n"
+
+            
+            if isinstance(node.test.ops[0], ast.Gt):
+                assembly_text += f"c.le.s $f0, $f1\n"
+                assembly_text += f"bc1t ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.GtE):
+                assembly_text += f"c.lt.s $f0, $f1\n"
+                assembly_text += f"bc1t ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.Lt):
+                assembly_text += f"c.lt.s $f0, $f1\n"
+                assembly_text += f"bc1f ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.LtE):
+                assembly_text += f"c.le.s $f0, $f1\n"
+                assembly_text += f"bc1f ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.Eq):
+                assembly_text += f"c.eq.s $f0, $f1\n"
+                assembly_text += f"bc1f ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.NotEq):
+                assembly_text += f"c.eq.s $f0, $f1\n"
+                assembly_text += f"bc1t ifstmt{ifstatementId}\n"
 
         handle_Body(node, variables)
 
@@ -205,14 +256,14 @@ def handle_function(node: ast.FunctionDef):
     for name in variables:
         if variables[name] == "int" or variables[name] == "float":
             stack_size += 4
+    full_stack_size = stack_size
     #setup function and stack frame
     assembly_text += f"{node.name}:\n"
     assembly_text += f"addi $sp, $sp, -{stack_size} # allocate stack\n"           #allocate stack
     assembly_text += f"sw $fp, {stack_size - 4}($sp) # save old frame pointer\n"  #save old frame pointer
     assembly_text += f"move $fp, $sp # set new frame pointer\n"                   #set new frame pointer
-    stack_size -= 4
-    assembly_text += f"sw $ra, {stack_size - 4}($sp) # save return address\n"    #save return address
-    stack_size -= 4
+    assembly_text += f"sw $ra, {stack_size - 8}($sp) # save return address\n"    #save return address
+    stack_size -= 8
     
     #assign variables to stack
     for name in variables:
@@ -222,6 +273,12 @@ def handle_function(node: ast.FunctionDef):
 
     #handle function body
     handle_Body(node,variables)
+
+    #clear stack and return
+    assembly_text += f"lw $fp, {full_stack_size - 4}($sp) # restore old frame pointer\n" #restore old frame pointer
+    assembly_text += f"lw $ra, {full_stack_size - 8}($sp) # restore return address\n" #restore return address
+    assembly_text += f"addi $sp, $sp, {full_stack_size} # deallocate stack\n" #deallocate stack
+    assembly_text += f"jr $ra # return\n"
 
 def handle_Body(node, variables):
     global assembly_text
