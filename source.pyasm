@@ -1,16 +1,10 @@
 from std_lib import *
 
 def main():
-    avar:float = 7.0
-    bvar:float = 2.0
-    cvar:float = avar / bvar
-    print_float(cvar)
-    print_newline()
-    if cvar < 3.6:
-        print_float(cvar)
+    avar:float = 0.0
+
+    while avar < 10.0:
+        print_float(avar)
         print_newline()
-    if cvar == 3.5:
-        tst:float = 69.0
-        print_float(tst)
-        print_newline()
-    print_float(cvar)
+        tmp:float = 1.0
+        avar:float = avar + tmp

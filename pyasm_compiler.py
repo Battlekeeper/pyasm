@@ -170,7 +170,75 @@ def handle_While(node: ast.While, variables: dict):
     global assembly_text
     global whileloopid
     assembly_text += f"whileloop{whileloopid}:\n"
+    handle_Body(node, variables)
+    if isinstance(node.test, ast.Compare):
+        isFloat = False
+        if isinstance(node.test.left, ast.Constant):
+            if isinstance(node.test.left.value, float):
+                isFloat = True
+        elif isinstance(node.test.left, ast.Name):
+            if variables[node.test.left.id][0] == "float":
+                isFloat = True
+        if isinstance(node.test.comparators[0], ast.Constant):
+            if isinstance(node.test.comparators[0].value, float):
+                isFloat = True
+        elif isinstance(node.test.comparators[0], ast.Name):
+            if variables[node.test.comparators[0].id][0] == "float":
+                isFloat = True
+        if not isFloat:
+            if isinstance(node.test.left, ast.Constant):
+                assembly_text += f"li $t0, {node.test.left.value}\n"
+            else:
+                assembly_text += f"lw $t0, {variables[node.test.left.id][1]}($fp)\n"
+            if isinstance(node.test.comparators[0], ast.Constant):
+                assembly_text += f"li $t1, {node.test.comparators[0].value}\n"
+            else:
+                assembly_text += f"lw $t1, {variables[node.test.comparators[0].id][1]}($fp)\n"
 
+            
+            if isinstance(node.test.ops[0], ast.Gt):
+                assembly_text += f"bgt $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.GtE):
+                assembly_text += f"bte $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.Lt):
+                assembly_text += f"blt $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.LtE):
+                assembly_text += f"ble $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.Eq):
+                assembly_text += f"beq $t0, $t1, ifstmt{ifstatementId}\n"
+            elif isinstance(node.test.ops[0], ast.NotEq):
+                assembly_text += f"bne $t0, $t1, ifstmt{ifstatementId}\n"
+        else:
+            if isinstance(node.test.left, ast.Constant):
+                assembly_text += f"li.s $f0, {node.test.left.value}\n"
+            else:
+                assembly_text += f"lwc1 $f0, {variables[node.test.left.id][1]}($fp)\n"
+            if isinstance(node.test.comparators[0], ast.Constant):
+                assembly_text += f"li.s $f1, {node.test.comparators[0].value}\n"
+            else:
+                assembly_text += f"lwc1 $f1, {variables[node.test.comparators[0].id][1]}($fp)\n"
+
+            
+            if isinstance(node.test.ops[0], ast.Gt):
+                assembly_text += f"c.le.s $f0, $f1\n"
+                assembly_text += f"bc1f whileloop{whileloopid}\n"
+            elif isinstance(node.test.ops[0], ast.GtE):
+                assembly_text += f"c.lt.s $f0, $f1\n"
+                assembly_text += f"bc1f whileloop{whileloopid}\n"
+            elif isinstance(node.test.ops[0], ast.Lt):
+                assembly_text += f"c.lt.s $f0, $f1\n"
+                assembly_text += f"bc1t whileloop{whileloopid}\n"
+            elif isinstance(node.test.ops[0], ast.LtE):
+                assembly_text += f"c.le.s $f0, $f1\n"
+                assembly_text += f"bc1t whileloop{whileloopid}\n"
+            elif isinstance(node.test.ops[0], ast.Eq):
+                assembly_text += f"c.eq.s $f0, $f1\n"
+                assembly_text += f"bc1t whileloop{whileloopid}\n"
+            elif isinstance(node.test.ops[0], ast.NotEq):
+                assembly_text += f"c.eq.s $f0, $f1\n"
+                assembly_text += f"bc1f whileloop{whileloopid}\n"
+
+    whileloopid += 1
 
 def handle_If(node: ast.If, variables: dict):
     global assembly_text
@@ -299,7 +367,7 @@ def handle_Body(node, variables):
                     assembly_text += f"jal {body_node.value.func.id}\n"
                     std_functions.add(body_node.value.func.id)
         elif isinstance(body_node, ast.While):
-            pass
+            handle_While(body_node, variables)
         elif isinstance(body_node, ast.If):
             handle_If(body_node, variables)
 
@@ -312,6 +380,7 @@ for node in tree.body:
         pass
 
 
+# ==================== Generate assembly file ==================== #
 assembly_data = ".data\n"
 for func in std_functions:
     for line in std_functions_asm[func][0]:
