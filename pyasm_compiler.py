@@ -235,17 +235,17 @@ def handle_While(node: ast.While, variables: dict):
 
             
             if isinstance(node.test.ops[0], ast.Gt):
-                assembly_text += f"bgt $t0, $t1, ifstmt{ifstatementId}\n"
+                assembly_text += f"bgt $t0, $t1, whileloop{whileloopid}\n"
             elif isinstance(node.test.ops[0], ast.GtE):
-                assembly_text += f"bte $t0, $t1, ifstmt{ifstatementId}\n"
+                assembly_text += f"bte $t0, $t1, whileloop{whileloopid}\n"
             elif isinstance(node.test.ops[0], ast.Lt):
-                assembly_text += f"blt $t0, $t1, ifstmt{ifstatementId}\n"
+                assembly_text += f"blt $t0, $t1, whileloop{whileloopid}\n"
             elif isinstance(node.test.ops[0], ast.LtE):
-                assembly_text += f"ble $t0, $t1, ifstmt{ifstatementId}\n"
+                assembly_text += f"ble $t0, $t1, whileloop{whileloopid}\n"
             elif isinstance(node.test.ops[0], ast.Eq):
-                assembly_text += f"beq $t0, $t1, ifstmt{ifstatementId}\n"
+                assembly_text += f"beq $t0, $t1, whileloop{whileloopid}\n"
             elif isinstance(node.test.ops[0], ast.NotEq):
-                assembly_text += f"bne $t0, $t1, ifstmt{ifstatementId}\n"
+                assembly_text += f"bne $t0, $t1, whileloop{whileloopid}\n"
         else:
             if isinstance(node.test.left, ast.Constant):
                 assembly_text += f"li.s $f0, {node.test.left.value}\n"

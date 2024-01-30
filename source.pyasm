@@ -1,16 +1,16 @@
 from std_lib import *
 
 
-# Compute factorial of 10
+# Compute factorial of 50
 def main():
-    index: float = 1.0
-    total: float = 1.0
+    index: int = 1
+    total: int = 1
 
-    while index <= 10.0:
-        total: float = total * index
-        print_float(total)
+    while index <= 50:
+        total: int = total * index
+        print_int(total)
         print_newline()
-        index: float = 1.0 + index
+        index: int = 1 + index
     print_newline()
     print_newline()
-    print_float(total)
+    print_int(total)
