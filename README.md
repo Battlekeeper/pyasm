@@ -1,6 +1,6 @@
-# Pyasm - It looks like python, it is low level like C, but feels like Javascript
+## Pyasm - It looks like python, it is low level like C, but feels like Javascript
 
-## Python like language that compiles to MIPS assembly
+### Python like language that compiles to MIPS assembly
 
 ### Below is an example program that computes the factorial of 10
 [More examples can be found here](https://github.com/Battlekeeper/pyasm/tree/main/examples)
