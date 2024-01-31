@@ -1,4 +1,5 @@
 ## Pyasm - It looks like python, low level like C, but feels like Javascript
+_so basically its garbage_
 
 ### Python like language that compiles to MIPS assembly
 
