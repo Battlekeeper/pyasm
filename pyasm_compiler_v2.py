@@ -264,9 +264,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
         elif isinstance(arg, ast.Call):
             Handle_Call(arg, scope_variables, assignType)
             if functions[arg.func.id] == "int":
-                assembly_text += f"move $a{index}, $v0 # DBG69 move return value of {stmt.func.id} to $a{index}\n"
+                assembly_text += f"move $a{index}, $v0 # move return value of {stmt.func.id} to $a{index}\n"
             elif functions[arg.func.id] == "float":
-                assembly_text += f"mov.s $f{index + 12}, $f0\n # DBG69 move return value of {stmt.func.id} to $f{index + 12}"        
+                assembly_text += f"mov.s $f{index + 12}, $f0\n # move return value of {stmt.func.id} to $f{index + 12}"        
 
     assembly_text += f"jal {stmt.func.id} # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
 
