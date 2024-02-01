@@ -1,7 +1,10 @@
 from std_lib import *
 
+def factorial(n: int) -> int:
+    if n == 0:
+        return 1
+    else:
+        return n * factorial(n - 1)
+
 def main() -> void:
-    i:int = 5
-    while i > 0:
-        print_int(i, 1)
-        i:int = i - 1
+    print_int(factorial(5), 1)

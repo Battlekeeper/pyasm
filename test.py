@@ -2,21 +2,41 @@ Module(
     body=[
         ImportFrom(module="std_lib", names=[alias(name="*")], level=0),
         FunctionDef(
-            name="tst",
+            name="factorial",
             args=arguments(
                 posonlyargs=[],
-                args=[arg(arg="arg1", annotation=Name(id="int", ctx=Load()))],
+                args=[arg(arg="n", annotation=Name(id="int", ctx=Load()))],
                 kwonlyargs=[],
                 kw_defaults=[],
                 defaults=[],
             ),
             body=[
-                Return(
-                    value=BinOp(
-                        left=Constant(value=2),
-                        op=Mult(),
-                        right=Name(id="arg1", ctx=Load()),
-                    )
+                If(
+                    test=Compare(
+                        left=Name(id="n", ctx=Load()),
+                        ops=[Eq()],
+                        comparators=[Constant(value=0)],
+                    ),
+                    body=[Return(value=Constant(value=1))],
+                    orelse=[
+                        Return(
+                            value=BinOp(
+                                left=Name(id="n", ctx=Load()),
+                                op=Mult(),
+                                right=Call(
+                                    func=Name(id="factorial", ctx=Load()),
+                                    args=[
+                                        BinOp(
+                                            left=Name(id="n", ctx=Load()),
+                                            op=Sub(),
+                                            right=Constant(value=1),
+                                        )
+                                    ],
+                                    keywords=[],
+                                ),
+                            )
+                        )
+                    ],
                 )
             ],
             decorator_list=[],
@@ -29,42 +49,19 @@ Module(
             ),
             body=[
                 AnnAssign(
-                    target=Name(id="i", ctx=Store()),
+                    target=Name(id="result", ctx=Store()),
                     annotation=Name(id="int", ctx=Load()),
-                    value=Constant(value=5),
-                    simple=1,
-                ),
-                While(
-                    test=Compare(
-                        left=Name(id="i", ctx=Load()),
-                        ops=[Gt()],
-                        comparators=[Constant(value=0)],
+                    value=Call(
+                        func=Name(id="factorial", ctx=Load()),
+                        args=[Constant(value=5)],
+                        keywords=[],
                     ),
-                    body=[
-                        Expr(
-                            value=Call(
-                                func=Name(id="print_int", ctx=Load()),
-                                args=[Name(id="i", ctx=Load()), Constant(value=1)],
-                                keywords=[],
-                            )
-                        ),
-                        AnnAssign(
-                            target=Name(id="i", ctx=Store()),
-                            annotation=Name(id="int", ctx=Load()),
-                            value=BinOp(
-                                left=Name(id="i", ctx=Load()),
-                                op=Sub(),
-                                right=Constant(value=1),
-                            ),
-                            simple=1,
-                        ),
-                    ],
-                    orelse=[],
+                    simple=1,
                 ),
                 Expr(
                     value=Call(
                         func=Name(id="print_int", ctx=Load()),
-                        args=[Constant(value=0), Constant(value=1)],
+                        args=[Name(id="result", ctx=Load()), Constant(value=1)],
                         keywords=[],
                     )
                 ),
