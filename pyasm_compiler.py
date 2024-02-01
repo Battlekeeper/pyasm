@@ -433,9 +433,6 @@ def handle_Function(node: ast.FunctionDef):
     assembly_text += f"jr $ra # return\n"
     assembly_text += f"\n\n"
 
-
-
-
 def handle_Return(node: ast.Return, variables: dict, returnlabel):
     global assembly_text
     if isinstance(node.value, ast.Constant):
