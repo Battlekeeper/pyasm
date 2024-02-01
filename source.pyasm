@@ -20,12 +20,7 @@ def harmonic(n: float) -> float:
         return r
 
 def main():
-    n: int = 4
-    r: int = factorial(n)
-    print_int(r)
-    print_newline()
-    print_newline()
-    nf:float = n 
-    h:float = harmonic(nf)
-    print_float(h)
-    print_newline()
+    r: int = factorial(4)
+    print_int(r, 1)
+    h:float = harmonic(4.0)
+    print_float(h, 1)

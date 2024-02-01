@@ -21,11 +21,11 @@ variables = dict()
 std_functions_asm = dict()
 std_functions_asm["print_int"] = [
     [],
-    "print_int:\nli $v0, 1\nsyscall\njr $ra",
+    "print_int:\nli $v0, 1\nsyscall\nbne $a1, $zero, print_newline\njr $ra",
 ]
 std_functions_asm["print_float"] = [
     ['float_format: .asciiz "%f"'],
-    """print_float:\nli   $v0, 2\nmov.s $f12, $f12\nla   $a0, float_format\nsyscall\njr   $ra""",
+    """print_float:\nli   $v0, 2\nmov.s $f12, $f12\nla   $a0, float_format\nsyscall\nbne $a1, $zero, print_newline\njr   $ra""",
 ]
 std_functions_asm["print_newline"] = [
     [],
@@ -216,25 +216,20 @@ def handle_AnnAssign(node: ast.AnnAssign, variables: dict):
                 assembly_text += f"cvt.s.w $f0, $f0\n"
                 assembly_text += f"swc1 $f0, {variables[node.target.id][1]}($fp)\n"
     elif isinstance(node.value, ast.Call):
-        if node.value.func.id in std_functions_asm:
-            regaddr = 0
-            for arg in node.value.args:
-                if isinstance(arg, ast.Name):
-                    if variables[arg.id][0] == "int":
-                        assembly_text += f"lw $a{regaddr}, {variables[arg.id][1]}($fp)\n"
-                    elif variables[arg.id][0] == "float":
-                        assembly_text += f"lwc1 $f{regaddr + 12}, {variables[arg.id][1]}($fp)\n"
-                regaddr += 1
-            assembly_text += f"jal {node.value.func.id}\n"
-            std_functions.add(node.value.func.id)
-        else:
-            for arg in node.value.args:
-                if isinstance(arg, ast.Name):
-                    if variables[arg.id][0] == "int":
-                        assembly_text += f"lw $a0, {variables[arg.id][1]}($fp)\n"
-                    elif variables[arg.id][0] == "float":
-                        assembly_text += f"lwc1 $f12, {variables[arg.id][1]}($fp)\n"
-            assembly_text += f"jal {node.value.func.id}\n"
+        regaddr = 0
+        for arg in node.value.args:
+            if isinstance(arg, ast.Name):
+                if variables[arg.id][0] == "int":
+                    assembly_text += f"lw $a{regaddr}, {variables[arg.id][1]}($fp)\n"
+                elif variables[arg.id][0] == "float":
+                    assembly_text += f"lwc1 $f{regaddr + 12}, {variables[arg.id][1]}($fp)\n"
+            elif isinstance(arg, ast.Constant):
+                if isinstance(arg.value, int):
+                    assembly_text += f"li $a{regaddr}, {arg.value}\n"
+                elif isinstance(arg.value, float):
+                    assembly_text += f"li.s $f{regaddr + 12}, {arg.value}\n"
+            regaddr += 1
+        assembly_text += f"jal {node.value.func.id}\n"
         if (node.annotation.id == "int"):
             assembly_text += f"sw $v0, {variables[node.target.id][1]}($fp)\n"
         elif (node.annotation.id == "float"):
@@ -464,26 +459,20 @@ def handle_Body(node, variables, returnlabel):
             handle_AnnAssign(body_node, variables)
         elif isinstance(body_node, ast.Expr):
             if isinstance(body_node.value, ast.Call):
-                if body_node.value.func.id in std_functions_asm:
-                    regaddr = 0
-                    for arg in body_node.value.args:
-                        if isinstance(arg, ast.Name):
-                            if variables[arg.id][0] == "int":
-                                assembly_text += f"lw $a{regaddr}, {variables[arg.id][1]}($fp)\n"
-                            elif variables[arg.id][0] == "float":
-                                assembly_text += f"lwc1 $f{regaddr + 12}, {variables[arg.id][1]}($fp)\n"
-                        regaddr += 1
-                    assembly_text += f"jal {body_node.value.func.id}\n"
-                    std_functions.add(body_node.value.func.id)
-                else:
-                    #TODO: handle function arguments
-                    for arg in body_node.value.args:
-                        if isinstance(arg, ast.Name):
-                            if variables[arg.id][0] == "int":
-                                assembly_text += f"lw $a0, {variables[arg.id][1]}($fp)\n"
-                            elif variables[arg.id][0] == "float":
-                                assembly_text += f"lwc1 $f12, {variables[arg.id][1]}($fp)\n"
-                    assembly_text += f"jal {body_node.value.func.id}\n"
+                regaddr = 0
+                for arg in body_node.value.args:
+                    if isinstance(arg, ast.Name):
+                        if variables[arg.id][0] == "int":
+                            assembly_text += f"lw $a{regaddr}, {variables[arg.id][1]}($fp)\n"
+                        elif variables[arg.id][0] == "float":
+                            assembly_text += f"lwc1 $f{regaddr + 12}, {variables[arg.id][1]}($fp)\n"
+                    elif isinstance(arg, ast.Constant):
+                        if isinstance(arg.value, int):
+                            assembly_text += f"li $a{regaddr}, {arg.value}\n"
+                        elif isinstance(arg.value, float):
+                            assembly_text += f"li.s $f{regaddr + 12}, {arg.value}\n"
+                    regaddr += 1
+                assembly_text += f"jal {body_node.value.func.id}\n"
         elif isinstance(body_node, ast.While):
             handle_While(body_node, variables, returnlabel)
         elif isinstance(body_node, ast.If):
@@ -502,11 +491,11 @@ for node in tree.body:
 
 # ==================== Generate assembly file ==================== #
 assembly_data = ".data\n"
-for func in std_functions:
+for func in std_functions_asm:
     for line in std_functions_asm[func][0]:
         assembly_data += line + "\n"
 assembly_data += "\n\n\n.text\n.globl main\n"
-for func in std_functions:
+for func in std_functions_asm:
     assembly_data += std_functions_asm[func][1] + "\n"
 assembly_data += "\n\n"
 assembly_data += "\n" + assembly_text
