@@ -142,30 +142,57 @@ Module(
             ),
             body=[
                 AnnAssign(
-                    target=Name(id="i", ctx=Store()),
+                    target=Name(id="n", ctx=Store()),
                     annotation=Name(id="int", ctx=Load()),
-                    value=Constant(value=10),
+                    value=Constant(value=1),
                     simple=1,
                 ),
                 While(
                     test=Compare(
-                        left=Name(id="i", ctx=Load()),
-                        ops=[Gt()],
-                        comparators=[Constant(value=0)],
+                        left=Name(id="n", ctx=Load()),
+                        ops=[NotEq()],
+                        comparators=[Constant(value=1)],
                     ),
                     body=[
-                        Expr(
-                            value=Call(
-                                func=Name(id="print_int", ctx=Load()),
-                                args=[Name(id="i", ctx=Load()), Constant(value=1)],
-                                keywords=[],
-                            )
-                        ),
-                        AugAssign(
-                            target=Name(id="i", ctx=Store()),
-                            op=Sub(),
-                            value=Constant(value=1),
-                        ),
+                        If(
+                            test=Compare(
+                                left=BinOp(
+                                    left=Name(id="n", ctx=Load()),
+                                    op=Mod(),
+                                    right=Constant(value=2),
+                                ),
+                                ops=[Eq()],
+                                comparators=[Constant(value=0)],
+                            ),
+                            body=[
+                                AnnAssign(
+                                    target=Name(id="n", ctx=Store()),
+                                    annotation=Name(id="int", ctx=Load()),
+                                    value=BinOp(
+                                        left=Name(id="n", ctx=Load()),
+                                        op=FloorDiv(),
+                                        right=Constant(value=2),
+                                    ),
+                                    simple=1,
+                                )
+                            ],
+                            orelse=[
+                                AnnAssign(
+                                    target=Name(id="n", ctx=Store()),
+                                    annotation=Name(id="int", ctx=Load()),
+                                    value=BinOp(
+                                        left=BinOp(
+                                            left=Constant(value=3),
+                                            op=Mult(),
+                                            right=Name(id="n", ctx=Load()),
+                                        ),
+                                        op=Add(),
+                                        right=Constant(value=1),
+                                    ),
+                                    simple=1,
+                                )
+                            ],
+                        )
                     ],
                     orelse=[],
                 ),

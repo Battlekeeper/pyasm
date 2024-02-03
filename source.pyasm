@@ -2,7 +2,16 @@ from std_lib import *
 
 
 def main() -> void:
-    i: int = 100
-    while i > 0:
-        print_int(i, 1)
-        i -= 1
+    n:int = 596310
+    length:int = 0
+    while n != 1:
+        print_int(n,1)
+        if n % 2 == 0:
+            n:int = n / 2
+        else:
+            n:int = 3 * n + 1
+        length+=1
+    print_int(1,1)
+    print_newline()
+    print_int(length,1)
+
