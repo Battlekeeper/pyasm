@@ -90,10 +90,10 @@ returnprint_float:
 
 
 factorial:                                              # n: int -> int
-    addi    $sp,                $sp,        -24         # allocate stack
-    sw      $fp,                20($sp)                 # save old frame pointer
+    addi    $sp,                $sp,        -16         # allocate stack
+    sw      $fp,                12($sp)                 # save old frame pointer
     move    $fp,                $sp                     # set new frame pointer
-    sw      $ra,                16($sp)                 # save return address
+    sw      $ra,                8($sp)                  # save return address
     sw      $a0,                4($fp)                  # store argument n
     li      $t0,                0                       # load immediate value 0
     sw      $t0,                0($fp)                  # save right side of compare to stack: 0
@@ -105,56 +105,40 @@ factorial:                                              # n: int -> int
     j       returnfactorial                             # jump to returnfactorial to clean up function
     j       endIf2
 iffalse2:   
-endIf2:     
-    li      $t0,                0                       # load immediate value 0
-    sw      $t0,                0($fp)                  # save right side of compare to stack: 0
-    lw      $t0,                4($fp)                  # load variable n from stack
-    lw      $t1,                0($fp)                  # load right side of compare from stack: 0
-    beq     $t0,                $t1,        iffalse3    # n != 0
     lw      $t0,                4($fp)                  # load variable n from stack
     li      $t1,                1                       # load immediate value 1
     sub     $t0,                $t0,        $t1         # n - 1
-    sw      $t0,                12($fp)                 # assign next: int = n - 1 in stack
-    lw      $a0,                12($fp)                 # load argument 'next' from stack
-    jal     factorial                                   # factorial(next)
-    move    $t0,                $v0                     # move return value of factorial to $t0
-    sw      $t0,                8($fp)                  # assign r: int = factorial(next) in stack
-    lw      $t0,                8($fp)                  # load variable r from stack
-    lw      $t1,                4($fp)                  # load variable n from stack
-    mul     $t0,                $t0,        $t1         # r * n
+    move    $a0,                $t0                     # move result of 'n - 1' to $a0
+    jal     factorial                                   # factorial(n - 1)
+    move    $t1,                $v0                     # move result of factorial to $t1
+    lw      $t0,                4($fp)                  # load variable n from stack
+    mul     $t0,                $t0,        $t1         # n * factorial(n - 1)
     mflo    $t0                                         # move integer result of multiplication to $t0
-    sw      $t0,                8($fp)                  # assign r: int = r * n in stack
+    move    $v0,                $t0                     # return result: return n * factorial(n - 1)
     j       returnfactorial                             # jump to returnfactorial to clean up function
-    j       endIf3
-iffalse3:   
-endIf3:     
+endIf2:     
 returnfactorial:
-    lw      $fp,                20($sp)                 # restore old frame pointer
-    lw      $ra,                16($sp)                 # restore return address
-    addi    $sp,                $sp,        24          # deallocate stack
+    lw      $fp,                12($sp)                 # restore old frame pointer
+    lw      $ra,                8($sp)                  # restore return address
+    addi    $sp,                $sp,        16          # deallocate stack
     jr      $ra                                         # return from function by jumping to the pointer in $ra
 
 
 main:                                                   # void -> void
-    addi    $sp,                $sp,        -16         # allocate stack
-    sw      $fp,                12($sp)                 # save old frame pointer
+    addi    $sp,                $sp,        -12         # allocate stack
+    sw      $fp,                8($sp)                  # save old frame pointer
     move    $fp,                $sp                     # set new frame pointer
-    sw      $ra,                8($sp)                  # save return address
-    li      $t0,                5                       # load immediate value 5
-    sw      $t0,                4($fp)                  # assign n:int = 5 in stack
-    lw      $a0,                4($fp)                  # load argument 'n' from stack
-    jal     factorial                                   # factorial(n)
+    sw      $ra,                4($sp)                  # save return address
+    li      $a0,                5                       # load immediate argument '5'
+    jal     factorial                                   # factorial(5)
     move    $t0,                $v0                     # move return value of factorial to $t0
-    sw      $t0,                0($fp)                  # assign f:int = factorial(n) in stack
-    lw      $a0,                0($fp)                  # load argument 'f' from stack
+    sw      $t0,                0($fp)                  # assign r:int = factorial(5) in stack
+    lw      $a0,                0($fp)                  # load argument 'r' from stack
     li      $a1,                1                       # load immediate argument '1'
-    jal     print_int                                   # print_int(f,1)
+    jal     print_int                                   # print_int(r, 1)
     move    $t0,                $v0                     # move return value of print_int to $t0
-    jal     print_newline                               # print_newline()
-    move    $t0,                $v0                     # move return value of print_newline to $t0
-    j       returnmain                                  # jump to returnmain to clean up function
 returnmain: 
-    lw      $fp,                12($sp)                 # restore old frame pointer
-    lw      $ra,                8($sp)                  # restore return address
-    addi    $sp,                $sp,        16          # deallocate stack
+    lw      $fp,                8($sp)                  # restore old frame pointer
+    lw      $ra,                4($sp)                  # restore return address
+    addi    $sp,                $sp,        12          # deallocate stack
     jr      $ra                                         # return from function by jumping to the pointer in $ra

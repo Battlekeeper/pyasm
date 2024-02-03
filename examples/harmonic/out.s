@@ -90,75 +90,59 @@ returnprint_float:
 
 
 harmonic:                                           # n: float -> float
-    addi    $sp,            $sp,        -28         # allocate stack
-    sw      $fp,            24($sp)                 # save old frame pointer
+    addi    $sp,            $sp,        -24         # allocate stack
+    sw      $fp,            20($sp)                 # save old frame pointer
     move    $fp,            $sp                     # set new frame pointer
-    sw      $ra,            20($sp)                 # save return address
+    sw      $ra,            16($sp)                 # save return address
     swc1    $f12,           4($fp)                  # store argument n
-    li.s    $f0,            2.0                     # load immediate value 2.0
-    swc1    $f0,            0($fp)                  # save right side of compare to stack: 2.0
+    li.s    $f0,            1.0                     # load immediate value 1.0
+    swc1    $f0,            0($fp)                  # save right side of compare to stack: 1.0
     lwc1    $f0,            4($fp)                  # load variable n from stack
-    lwc1    $f1,            0($fp)                  # save right side of compare from stack: 2.0
-    c.lt.s  $f0,            $f1
+    lwc1    $f1,            0($fp)                  # save right side of compare from stack: 1.0
+    c.eq.s  $f0,            $f1
     bc1f    iffalse2
     li.s    $f0,            1.0                     # load immediate value 1.0
     mov.s   $f0,            $f0                     # return result: return 1.0
     j       returnharmonic                          # jump to returnharmonic to clean up function
     j       endIf2
 iffalse2:   
-endIf2:     
-    li.s    $f0,            0.0                     # load immediate value 0.0
-    swc1    $f0,            0($fp)                  # save right side of compare to stack: 0.0
-    lwc1    $f0,            4($fp)                  # load variable n from stack
-    lwc1    $f1,            0($fp)                  # save right side of compare from stack: 0.0
-    c.eq.s  $f0,            $f1
-    bc1t    iffalse3
-    lwc1    $f0,            4($fp)                  # load variable n from stack
-    li.s    $f1,            1.0                     # load immediate value 1.0
-    sub.s   $f0,            $f0,        $f1         # n - 1.0
-    swc1    $f0,            16($fp)                 # assign next: float = n - 1.0 in stack
-    lwc1    $f12,           16                      # load argument 'next' from stack($fp)
-    jal     harmonic                                # harmonic(next)
-    move    $t0,            $v0                     # move return value of harmonic to $t0
-    swc1    $f0,            12($fp)                 # assign r: float = harmonic(next) in stack
     li.s    $f0,            1.0                     # load immediate value 1.0
     lwc1    $f1,            4($fp)                  # load variable n from stack
     div.s   $f0,            $f0,        $f1         # 1.0 / n
-    mflo    $f0                                     # move floating point result of division to $f0
-    swc1    $f0,            8($fp)                  # assign div:float = 1.0 / n in stack
-    lwc1    $f0,            12($fp)                 # load variable r from stack
-    lwc1    $f1,            8($fp)                  # load variable div from stack
-    add.s   $f0,            $f0,        $f1         # r + div
-    swc1    $f0,            12($fp)                 # assign r: float = r + div in stack
+    swc1    $f0,            12($fp)
+    lwc1    $f0,            4($fp)                  # load variable n from stack
+    li.s    $f1,            1.0                     # load immediate value 1.0
+    sub.s   $f0,            $f0,        $f1         # n - 1.0
+    mov.s   $f12,           $f0                     # move result of 'n - 1.0' to $f12
+    jal     harmonic                                # harmonic(n - 1.0)
+    mov.s   $f0,            $f0                     # move return value of harmonic to $f0
+    swc1    $f0,            8($fp)
+    lwc1    $f0,            12($fp)
+    lwc1    $f1,            8($fp)
+    add.s   $f0,            $f0,        $f1         # 1.0 / n + harmonic(n - 1.0)
+    mov.s   $f0,            $f0                     # return result: return 1.0 / n + harmonic(n - 1.0)
     j       returnharmonic                          # jump to returnharmonic to clean up function
-    j       endIf3
-iffalse3:   
-endIf3:     
+endIf2:     
 returnharmonic:
-    lw      $fp,            24($sp)                 # restore old frame pointer
-    lw      $ra,            20($sp)                 # restore return address
-    addi    $sp,            $sp,        28          # deallocate stack
+    lw      $fp,            20($sp)                 # restore old frame pointer
+    lw      $ra,            16($sp)                 # restore return address
+    addi    $sp,            $sp,        24          # deallocate stack
     jr      $ra                                     # return from function by jumping to the pointer in $ra
 
 
 main:                                               # void -> void
-    addi    $sp,            $sp,        -16         # allocate stack
-    sw      $fp,            12($sp)                 # save old frame pointer
+    addi    $sp,            $sp,        -8          # allocate stack
+    sw      $fp,            4($sp)                  # save old frame pointer
     move    $fp,            $sp                     # set new frame pointer
-    sw      $ra,            8($sp)                  # save return address
-    lwc1    $f0,            4($fp)                  # load variable n from stack
-    swc1    $f0,            4($fp)                  # assign n:float = n in stack
-    lwc1    $f12,           4                       # load argument 'n' from stack($fp)
-    jal     harmonic                                # harmonic(n)
-    move    $t0,            $v0                     # move return value of harmonic to $t0
-    swc1    $f0,            0($fp)                  # assign h:float = harmonic(n) in stack
-    lwc1    $f12,           0                       # load argument 'h' from stack($fp)
-    jal     print_float                             # print_float(h)
+    sw      $ra,            0($sp)                  # save return address
+    li.s    $f12,           5.0                     # load immediate argument '5.0'
+    jal     harmonic                                # harmonic(5.0)
+    mov.s   $f12,           $f0
+    # move return value of print_float to $f12li $a1, 1 # load immediate argument '1'
+    jal     print_float                             # print_float(harmonic(5.0), 1)
     move    $t0,            $v0                     # move return value of print_float to $t0
-    jal     print_newline                           # print_newline()
-    move    $t0,            $v0                     # move return value of print_newline to $t0
 returnmain: 
-    lw      $fp,            12($sp)                 # restore old frame pointer
-    lw      $ra,            8($sp)                  # restore return address
-    addi    $sp,            $sp,        16          # deallocate stack
+    lw      $fp,            4($sp)                  # restore old frame pointer
+    lw      $ra,            0($sp)                  # restore return address
+    addi    $sp,            $sp,        8           # deallocate stack
     jr      $ra                                     # return from function by jumping to the pointer in $ra

@@ -106,7 +106,7 @@ def isCompareFloat(stmt: ast.Compare, scope_variables: dict):
             return True
     return False
 
-def allocate_variables(body: ast.stmt) -> dict:
+def allocate_variables(body: ast.stmt, assignType:str = None) -> dict:
     variables = dict()
     for node in body.body:
         if isinstance(node, ast.AnnAssign):
@@ -115,6 +115,11 @@ def allocate_variables(body: ast.stmt) -> dict:
                 if lookFor2BinOps(node.value):
                     variables["lbin"] = node.annotation.id
                     variables["rbin"] = node.annotation.id
+        elif isinstance(node, ast.Return):
+            if (isinstance(node.value, ast.BinOp)):
+                if lookFor2BinOps(node.value):
+                    variables["lbin"] = assignType
+                    variables["rbin"] = assignType
         else:
             if "body" in node._fields:
                 variables.update(allocate_variables(node))
@@ -126,6 +131,11 @@ def allocate_variables(body: ast.stmt) -> dict:
                         if lookFor2BinOps(node.value):
                             variables["lbin"] = node.annotation.id
                             variables["rbin"] = node.annotation.id
+                elif isinstance(node, ast.Return):
+                    if (isinstance(node.value, ast.BinOp)):
+                        if lookFor2BinOps(node.value):
+                            variables["lbin"] = assignType
+                            variables["rbin"] = assignType
                 else:
                     if "body" in node._fields:
                         variables.update(allocate_variables(node))
@@ -135,8 +145,12 @@ def lookFor2BinOps(binOp: ast.BinOp) -> True:
     if isinstance(binOp.left, ast.BinOp) and isinstance(binOp.right, ast.BinOp):
         return True
     elif isinstance(binOp.left, ast.BinOp):
+        if (binOp.left.left, ast.BinOp) or (binOp.left.right, ast.BinOp):
+            return True
         return lookFor2BinOps(binOp.left)
     elif isinstance(binOp.right, ast.BinOp):
+        if (binOp.right.left, ast.BinOp) or (binOp.right.right, ast.BinOp):
+            return True
         return lookFor2BinOps(binOp.right)
     else:
         return False
@@ -174,7 +188,7 @@ def Handle_FunctionDef(stmt: ast.FunctionDef, level:int):
     returnlabel = f"return{stmt.name}"
 
     scope_variables = dict()
-    scope_variables.update(allocate_variables(stmt))
+    scope_variables.update(allocate_variables(stmt, stmt.returns.id))
 
     for name in scope_variables:
         if scope_variables[name] == "int" or scope_variables[name] == "float":
@@ -414,14 +428,14 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
             assembly_text += f"mflo $t0 # move integer result of multiplication to $t0\n"
         elif assignType == "float":
             assembly_text += f"mul.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
+            #assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
     elif isinstance(stmt.op, ast.Div):
         if assignType == "int":
             assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
             assembly_text += f"mflo $t0 # move integer result of division to $t0\n"
         elif assignType == "float":
             assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0 # move floating point result of division to $f0\n"
+            #assembly_text += f"mflo $f0 # move floating point result of division to $f0\n"
     elif isinstance(stmt.op, ast.Mod):
         if assignType == "int":
             assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
@@ -551,14 +565,14 @@ def Handle_AugAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: st
             assembly_text += f"mflo $t0 # move integer result of multiplication to $t0\n"
         elif scope_variables[stmt.target.id][0] == "float":
             assembly_text += f"mul.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
+            #assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
     elif isinstance(stmt.op, ast.Div):
         if scope_variables[stmt.target.id][0] == "int":
             assembly_text += f"div $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
             assembly_text += f"mflo $t0 # move integer result of division to $f0\n"
         elif scope_variables[stmt.target.id][0] == "float":
             assembly_text += f"div.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0\n # move floating point result of division to $f0"
+            #assembly_text += f"mflo $f0\n # move floating point result of division to $f0"
     
     if scope_variables[stmt.target.id][0] == "int":
         assembly_text += f"sw $t0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
