@@ -1,4 +1,4 @@
 **/__pycache__/
 .venv
-./out.s
-./source.pyasm
+out.s
+source.pyasm
