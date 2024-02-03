@@ -16,6 +16,17 @@ if not os.path.isfile(input_file):
 
 variables = dict()
 file_data = open(input_file).read()
+
+file_lines = file_data.splitlines()
+line_number = 0
+for line_number, line in enumerate(file_lines, start=1):
+    if "std_lib" in line:
+        break
+
+file_lines[line_number-1] = open("std_lib.py").read().replace("def syscall(a: int = 0, b:int = 0) -> void:\n    pass", "")
+file_data = "\n".join(file_lines)
+
+
 source_lines = file_data.split("\n")
 tree = ast.parse(file_data)
 print("\n" + ast.dump(tree) + "\n")
@@ -24,23 +35,6 @@ assembly_data = ".data\n"
 assembly_text = ".text\n.globl main\n"
 
 
-std_functions_asm = dict()
-std_functions_asm["print_int"] = [
-    [],
-    "print_int:\nli $v0, 1\nsyscall\nbne $a1, $zero, print_newline\njr $ra",
-]
-std_functions_asm["print_float"] = [
-    ['float_format: .asciiz "%f"'],
-    """print_float:\nli   $v0, 2\nmov.s $f12, $f12\nla   $a0, float_format\nsyscall\nbne $a1, $zero, print_newline\njr   $ra""",
-]
-std_functions_asm["print_newline"] = [
-    [],
-    """print_newline:\nli   $v0, 11\nli   $a0, '\\n'\nsyscall\njr   $ra""",
-]
-std_functions_asm["terminate"] = [
-    [],
-    "terminate:\nli   $v0, 10\nsyscall",
-]
 
 functions = dict()
 global_variables = dict()
@@ -48,10 +42,6 @@ global_variables = dict()
 if_stmt_counter = 0
 while_stmt_counter = 0
 
-for func in std_functions_asm:
-    for line in std_functions_asm[func][0]:
-        assembly_data += f"{line}\n"
-    assembly_text += f"{std_functions_asm[func][1]}\n"
 
 def isBinOpFloat(stmt: ast.BinOp, scope_variables: dict):
     if isinstance(stmt.left, ast.BinOp):
@@ -260,7 +250,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                     else:
                         assembly_text += f"lw $a{index - 1}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
                 elif scope_variables[arg.id][0] == "float":
-                    assembly_text += f"lwc1 $f{index + 11}, {scope_variables[arg.id][1]} # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
+                    assembly_text += f"lwc1 $f{index + 11}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
+                elif scope_variables[arg.id] == "str":
+                    assembly_text += f"la $a{index - 1}, {arg.id} # load pointer of argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
             elif isinstance(arg, ast.Constant):
                 if isinstance(arg.value, int):
                     if index == 0:
@@ -286,6 +278,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                         assembly_text += f"move $a{index - 1}, $v0 # move return value of {stmt.func.id} to $a{index - 1}\n"
                 elif functions[arg.func.id] == "float":
                     assembly_text += f"mov.s $f{index + 11}, $f0\n # move return value of {stmt.func.id} to $f{index + 11}"
+        if stmt.args[0].value == 2:
+            #assembly_text += f"la $a0, float_format # load string to format the float into $a0\n"
+            pass
         assembly_text += f"syscall # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
     else:
         for index,arg in enumerate(stmt.args):
@@ -300,6 +295,8 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                         assembly_text += f"lw $a{index}, {arg.id} # load global argument'{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
                     elif scope_variables[arg.id] == "float":
                         assembly_text += f"lwc1 $f{index + 12}, {arg.id} # load global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+                    elif scope_variables[arg.id] == "str":
+                        assembly_text += f"la $a{index}, {arg.id} # load pointer of global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
             elif isinstance(arg, ast.Constant):
                 if isinstance(arg.value, int):
                     assembly_text += f"li $a{index}, {arg.value} # load immediate argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
@@ -651,9 +648,6 @@ def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assig
     assembly_text += f"endwhile{while_stmt_counter}:\n"
 
 
-
-
-
 def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, assignType, level = -1):
     global assembly_text
     for stmt in body:
@@ -671,7 +665,7 @@ def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, a
                 assembly_text += f"move $t0, $v0 # move return value of {stmt.value.func.id} to $t0\n"
         elif isinstance(stmt, ast.While):
             Handle_While(stmt, scope_variables, returnlabel, assignType, level)
-        elif isinstance(stmt, ast.ImportFrom) or isinstance(stmt, ast.Global):
+        elif isinstance(stmt, ast.ImportFrom) or isinstance(stmt, ast.Global) or isinstance(stmt, ast.ClassDef) or isinstance(stmt, ast.Pass):
             pass
         else:
             raise Exception(f"Error: Unknown statement in body {stmt}")

@@ -14,7 +14,7 @@ Module(
                 args=[arg(arg="n", annotation=Name(id="int", ctx=Load()))],
                 kwonlyargs=[],
                 kw_defaults=[],
-                defaults=[],
+                defaults=[Constant(value=420)],
             ),
             body=[
                 If(
@@ -47,6 +47,7 @@ Module(
             ],
             decorator_list=[],
             returns=Name(id="int", ctx=Load()),
+            type_params=[],
         ),
         FunctionDef(
             name="main",
@@ -79,6 +80,7 @@ Module(
             ],
             decorator_list=[],
             returns=Name(id="void", ctx=Load()),
+            type_params=[],
         ),
     ],
     type_ignores=[],

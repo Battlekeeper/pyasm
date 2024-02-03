@@ -1,14 +1,4 @@
 from std_lib import *
 
-testvar:float = 69.0
-
-def factorial(n: int) -> int:
-    if n == 0:
-        return 1
-    else:
-        return n * factorial(n - 1)
-
 def main() -> void:
-    global testvar
-    print_int(factorial(5), 1)
-    print_float(testvar, 1)
+    print_float(69.0, 1)
