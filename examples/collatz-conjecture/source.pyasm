@@ -1,6 +1,5 @@
 from std_lib import *
 
-
 def main() -> void:
     n:int = 596310
     length:int = 0
@@ -14,4 +13,3 @@ def main() -> void:
     print_int(1,1)
     print_newline()
     print_int(length,1)
-

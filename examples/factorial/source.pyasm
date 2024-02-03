@@ -1,0 +1,17 @@
+from std_lib import *
+
+def factorial(n: int) -> int:
+    if n == 0:
+        return 1
+    if n != 0:
+        next: int = n - 1
+        r: int = factorial(next)
+        r: int = r * n
+        return r
+    
+def main() -> void:
+    n:int = 5
+    f:int = factorial(n)
+    print_int(f,1)
+    print_newline()
+    return

@@ -421,7 +421,7 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
             assembly_text += f"mflo $t0 # move integer result of division to $t0\n"
         elif assignType == "float":
             assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0\n # move floating point result of division to $f0"
+            assembly_text += f"mflo $f0 # move floating point result of division to $f0\n"
     elif isinstance(stmt.op, ast.Mod):
         if assignType == "int":
             assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
