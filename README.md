@@ -18,8 +18,10 @@ def factorial(n: int) -> int:
             return n * factorial(n - 1)
 
 def main() -> void:
-    r:int = factorial(5)
-    print_int(r, 1)
+    n:int = 0
+    while n < 32:
+        print_int(factorial(n), 1)
+        n += 1
 ```
 
 ### And here is the (no optimisations made) assembly that corresponds to that pyasm program
@@ -152,28 +154,41 @@ returnfactorial:
 
 
 main:                                                   # void -> void
-    addi    $sp,                $sp,        -12         # allocate stack
-    sw      $fp,                8($sp)                  # save old frame pointer
+    addi    $sp,                $sp,        -16         # allocate stack
+    sw      $fp,                12($sp)                 # save old frame pointer
     move    $fp,                $sp                     # set new frame pointer
-    sw      $ra,                4($sp)                  # save return address
-    li      $a0,                5                       # load immediate argument '5'
-    jal     factorial                                   # factorial(5)
-    move    $t0,                $v0                     # move return value of factorial to $t0
-    sw      $t0,                0($fp)                  # assign r:int = factorial(5) in stack
-    lw      $a0,                0($fp)                  # load argument 'r' from stack
+    sw      $ra,                8($sp)                  # save return address
+    li      $t0,                0                       # load immediate value 0
+    sw      $t0,                4($fp)                  # assign n:int = 0 in stack
+startWhile0:
+    li      $t0,                32                      # load immediate value 32
+    sw      $t0,                0($fp)                  # save right side of compare to stack: 32
+    lw      $t0,                4($fp)                  # load variable n from stack
+    lw      $t1,                0($fp)                  # load right side of compare from stack: 32
+    bge     $t0,                $t1,        endwhile0   # n < 32
+    lw      $a0,                4($fp)                  # load argument 'n' from stack
+    jal     factorial                                   # factorial(n)
+    move    $a0,                $v0                     # move return value of print_int to $a0
     li      $a1,                1                       # load immediate argument '1'
-    jal     print_int                                   # print_int(r, 1)
+    jal     print_int                                   # print_int(factorial(n), 1)
     move    $t0,                $v0                     # move return value of print_int to $t0
+    li      $t0,                1                       # load immediate value 1
+    lw      $t1,                4($fp)                  # load argument 'n' from stack
+    add     $t0,                $t1,        $t0         # n += 1
+    sw      $t0,                4($fp)                  # assign n += 1 in stack
+    j       startWhile0
+endwhile0:  
 returnmain: 
-    lw      $fp,                8($sp)                  # restore old frame pointer
-    lw      $ra,                4($sp)                  # restore return address
-    addi    $sp,                $sp,        12          # deallocate stack
+    lw      $fp,                12($sp)                 # restore old frame pointer
+    lw      $ra,                8($sp)                  # restore return address
+    addi    $sp,                $sp,        16          # deallocate stack
     jr      $ra                                         # return from function by jumping to the pointer in $ra
 ```
 
 Here is the output of the above assembly as printed to the console
 
 ```txt
+1
 1
 2
 6
@@ -205,26 +220,4 @@ Here is the output of the above assembly as printed to the console
 -1241513984
 1409286144
 738197504
--2147483648
--2147483648
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-
-
-0
 ```
