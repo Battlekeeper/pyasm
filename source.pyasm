@@ -1,4 +1,8 @@
 from std_lib import *
 
+
 def main() -> void:
-    print_float(69.0, 1)
+    i: int = 100
+    while i > 0:
+        print_int(i, 1)
+        i -= 1

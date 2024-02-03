@@ -1,52 +1,138 @@
 Module(
     body=[
-        ImportFrom(module="std_lib", names=[alias(name="*")], level=0),
         AnnAssign(
-            target=Name(id="testvar", ctx=Store()),
-            annotation=Name(id="float", ctx=Load()),
-            value=Constant(value=69.0),
+            target=Name(id="new_line", ctx=Store()),
+            annotation=Name(id="str", ctx=Load()),
+            value=Constant(value="\\n"),
             simple=1,
         ),
+        ClassDef(
+            name="void",
+            bases=[],
+            keywords=[],
+            body=[Pass()],
+            decorator_list=[],
+            type_params=[],
+        ),
         FunctionDef(
-            name="factorial",
+            name="terminate",
             args=arguments(
-                posonlyargs=[],
-                args=[arg(arg="n", annotation=Name(id="int", ctx=Load()))],
-                kwonlyargs=[],
-                kw_defaults=[],
-                defaults=[Constant(value=420)],
+                posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
             ),
             body=[
-                If(
-                    test=Compare(
-                        left=Name(id="n", ctx=Load()),
-                        ops=[Eq()],
-                        comparators=[Constant(value=0)],
-                    ),
-                    body=[Return(value=Constant(value=1))],
-                    orelse=[
-                        Return(
-                            value=BinOp(
-                                left=Name(id="n", ctx=Load()),
-                                op=Mult(),
-                                right=Call(
-                                    func=Name(id="factorial", ctx=Load()),
-                                    args=[
-                                        BinOp(
-                                            left=Name(id="n", ctx=Load()),
-                                            op=Sub(),
-                                            right=Constant(value=1),
-                                        )
-                                    ],
-                                    keywords=[],
-                                ),
-                            )
-                        )
-                    ],
+                Expr(
+                    value=Call(
+                        func=Name(id="syscall", ctx=Load()),
+                        args=[Constant(value=10)],
+                        keywords=[],
+                    )
                 )
             ],
             decorator_list=[],
-            returns=Name(id="int", ctx=Load()),
+            returns=Name(id="void", ctx=Load()),
+            type_params=[],
+        ),
+        FunctionDef(
+            name="print_newline",
+            args=arguments(
+                posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
+            ),
+            body=[
+                Global(names=["new_line"]),
+                Expr(
+                    value=Call(
+                        func=Name(id="syscall", ctx=Load()),
+                        args=[Constant(value=4), Name(id="new_line", ctx=Load())],
+                        keywords=[],
+                    )
+                ),
+            ],
+            decorator_list=[],
+            returns=Name(id="void", ctx=Load()),
+            type_params=[],
+        ),
+        FunctionDef(
+            name="print_int",
+            args=arguments(
+                posonlyargs=[],
+                args=[
+                    arg(arg="number", annotation=Name(id="int", ctx=Load())),
+                    arg(arg="new_line", annotation=Name(id="int", ctx=Load())),
+                ],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[],
+            ),
+            body=[
+                Expr(
+                    value=Call(
+                        func=Name(id="syscall", ctx=Load()),
+                        args=[Constant(value=1), Name(id="number", ctx=Load())],
+                        keywords=[],
+                    )
+                ),
+                If(
+                    test=Compare(
+                        left=Name(id="new_line", ctx=Load()),
+                        ops=[Eq()],
+                        comparators=[Constant(value=1)],
+                    ),
+                    body=[
+                        Expr(
+                            value=Call(
+                                func=Name(id="print_newline", ctx=Load()),
+                                args=[],
+                                keywords=[],
+                            )
+                        )
+                    ],
+                    orelse=[],
+                ),
+            ],
+            decorator_list=[],
+            returns=Name(id="void", ctx=Load()),
+            type_params=[],
+        ),
+        FunctionDef(
+            name="print_float",
+            args=arguments(
+                posonlyargs=[],
+                args=[
+                    arg(arg="number", annotation=Name(id="float", ctx=Load())),
+                    arg(arg="new_line", annotation=Name(id="int", ctx=Load())),
+                ],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[],
+            ),
+            body=[
+                Expr(
+                    value=Call(
+                        func=Name(id="syscall", ctx=Load()),
+                        args=[Constant(value=2), Name(id="number", ctx=Load())],
+                        keywords=[],
+                    )
+                ),
+                If(
+                    test=Compare(
+                        left=Name(id="new_line", ctx=Load()),
+                        ops=[Eq()],
+                        comparators=[Constant(value=1)],
+                    ),
+                    body=[
+                        Expr(
+                            value=Call(
+                                func=Name(id="print_newline", ctx=Load()),
+                                args=[],
+                                keywords=[],
+                            )
+                        )
+                    ],
+                    orelse=[],
+                ),
+            ],
+            decorator_list=[],
+            returns=Name(id="void", ctx=Load()),
             type_params=[],
         ),
         FunctionDef(
@@ -55,27 +141,33 @@ Module(
                 posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
             ),
             body=[
-                Global(names=["testvar"]),
-                Expr(
-                    value=Call(
-                        func=Name(id="print_int", ctx=Load()),
-                        args=[
-                            Call(
-                                func=Name(id="factorial", ctx=Load()),
-                                args=[Constant(value=5)],
-                                keywords=[],
-                            ),
-                            Constant(value=1),
-                        ],
-                        keywords=[],
-                    )
+                AnnAssign(
+                    target=Name(id="i", ctx=Store()),
+                    annotation=Name(id="int", ctx=Load()),
+                    value=Constant(value=10),
+                    simple=1,
                 ),
-                Expr(
-                    value=Call(
-                        func=Name(id="print_float", ctx=Load()),
-                        args=[Name(id="testvar", ctx=Load()), Constant(value=1)],
-                        keywords=[],
-                    )
+                While(
+                    test=Compare(
+                        left=Name(id="i", ctx=Load()),
+                        ops=[Gt()],
+                        comparators=[Constant(value=0)],
+                    ),
+                    body=[
+                        Expr(
+                            value=Call(
+                                func=Name(id="print_int", ctx=Load()),
+                                args=[Name(id="i", ctx=Load()), Constant(value=1)],
+                                keywords=[],
+                            )
+                        ),
+                        AugAssign(
+                            target=Name(id="i", ctx=Store()),
+                            op=Sub(),
+                            value=Constant(value=1),
+                        ),
+                    ],
+                    orelse=[],
                 ),
             ],
             decorator_list=[],

@@ -515,6 +515,48 @@ def Handle_AnnAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: st
             assembly_data += f"{stmt.target.id}: .asciiz \"{stmt.value.value}\"\n"
         global_variables[stmt.target.id] = stmt.annotation.id
         
+def Handle_AugAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: str, level:int):
+    global assembly_text
+    global assembly_data
+    global global_variables
+
+    Handle_Value(stmt.value, scope_variables, scope_variables[stmt.target.id][0])
+
+
+    if scope_variables[stmt.target.id][0] == "int":
+        assembly_text += f"lw $t1, {scope_variables[stmt.target.id][1]}($fp) # load argument '{source_lines[stmt.target.lineno - 1][stmt.target.col_offset:stmt.target.end_col_offset].strip()}' from stack\n"
+    elif scope_variables[stmt.target.id][0] == "float":
+        assembly_text += f"lwc1 $f1, {scope_variables[stmt.target.id][1]}($fp) # load argument '{source_lines[stmt.target.lineno - 1][stmt.target.col_offset:stmt.target.end_col_offset].strip()}' from stack\n"
+
+    if  isinstance(stmt.op, ast.Add):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"add $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"add.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.Sub):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"sub $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"sub.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.Mult):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"mul $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $t0 # move integer result of multiplication to $t0\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"mul.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
+    elif isinstance(stmt.op, ast.Div):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"div $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $t0 # move integer result of division to $f0\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"div.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $f0\n # move floating point result of division to $f0"
+    
+    if scope_variables[stmt.target.id][0] == "int":
+        assembly_text += f"sw $t0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
+    elif scope_variables[stmt.target.id][0] == "float":
+        assembly_text += f"swc1 $f0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
 
 def Handle_Return(stmt: ast.Return, scope_variables: dict, returnlabel: str, assignType, level:int):
     global assembly_text
@@ -647,7 +689,6 @@ def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assig
     assembly_text += f"j startWhile{while_stmt_counter}\n"
     assembly_text += f"endwhile{while_stmt_counter}:\n"
 
-
 def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, assignType, level = -1):
     global assembly_text
     for stmt in body:
@@ -655,6 +696,8 @@ def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, a
             Handle_FunctionDef(stmt, level)
         elif isinstance(stmt, ast.AnnAssign):
             Handle_AnnAssign(stmt, scope_variables, returnlabel, level)
+        elif isinstance(stmt, ast.AugAssign):
+            Handle_AugAssign(stmt, scope_variables, returnlabel, level)
         elif isinstance(stmt, ast.Return):
             Handle_Return(stmt, scope_variables, returnlabel, assignType, level)
         elif isinstance(stmt, ast.If):
