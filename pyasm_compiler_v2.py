@@ -43,6 +43,7 @@ std_functions_asm["terminate"] = [
 ]
 
 functions = dict()
+global_variables = dict()
 
 if_stmt_counter = 0
 while_stmt_counter = 0
@@ -171,9 +172,10 @@ def bodyHasWhileStmt(body: list[ast.stmt]) -> bool:
     return False
 
 
-def Handle_FunctionDef(stmt: ast.FunctionDef):
+def Handle_FunctionDef(stmt: ast.FunctionDef, level:int):
     global assembly_text
     global functions
+    global global_variables
 
     functions[stmt.name] = stmt.returns.id
 
@@ -228,9 +230,14 @@ def Handle_FunctionDef(stmt: ast.FunctionDef):
             assembly_text += f"sw $a{index}, {var[1]}($fp) # store argument {arg.arg}\n"
         elif var[0] == "float":
             assembly_text += f"swc1 $f{index + 12}, {var[1]}($fp) # store argument {arg.arg}\n"
-
+    
+    for child in stmt.body:
+        if isinstance(child, ast.Global):
+            for name in child.names:
+                scope_variables[name] = global_variables[name]
+    
     # walk rest of body tree
-    Handle_Body(stmt.body, scope_variables, returnlabel, stmt.returns.id)
+    Handle_Body(stmt.body, scope_variables, returnlabel, stmt.returns.id, level + 1)
 
     #set return variables if they exist
     assembly_text += f"{returnlabel}:\n"
@@ -283,10 +290,16 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
     else:
         for index,arg in enumerate(stmt.args):
             if isinstance(arg, ast.Name):
-                if scope_variables[arg.id][0] == "int":
-                    assembly_text += f"lw $a{index}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
-                elif scope_variables[arg.id][0] == "float":
-                    assembly_text += f"lwc1 $f{index + 12}, {scope_variables[arg.id][1]} # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
+                if not isinstance(scope_variables[arg.id], str):
+                    if scope_variables[arg.id][0] == "int":
+                        assembly_text += f"lw $a{index}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
+                    elif scope_variables[arg.id][0] == "float":
+                        assembly_text += f"lwc1 $f{index + 12}, {scope_variables[arg.id][1]} # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
+                else:
+                    if scope_variables[arg.id] == "int":
+                        assembly_text += f"lw $a{index}, {arg.id} # load global argument'{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+                    elif scope_variables[arg.id] == "float":
+                        assembly_text += f"lwc1 $f{index + 12}, {arg.id} # load global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
             elif isinstance(arg, ast.Constant):
                 if isinstance(arg.value, int):
                     assembly_text += f"li $a{index}, {arg.value} # load immediate argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
@@ -480,19 +493,33 @@ def Handle_Value(stmt: ast.stmt, scope_variables: dict, assignType: str):
         raise Exception(f"Error: Unknown value {stmt}")
     pass
 
-def Handle_AnnAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: str):
+def Handle_AnnAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: str, level:int):
     global assembly_text
+    global assembly_data
+    global global_variables
 
-    Handle_Value(stmt.value, scope_variables, stmt.annotation.id)
+    if level != 0:
+        Handle_Value(stmt.value, scope_variables, stmt.annotation.id)
 
-    if stmt.annotation.id == "int":
-        assembly_text += f"sw $t0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
-    elif stmt.annotation.id == "float":
-        assembly_text += f"swc1 $f0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
-    pass
+        if stmt.annotation.id == "int":
+            assembly_text += f"sw $t0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
+        elif stmt.annotation.id == "float":
+            assembly_text += f"swc1 $f0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
+        pass
+    else:
+        if (not isinstance(stmt.value, ast.Constant)):
+            print(f"Compiler Error: Global variable {stmt.target.id} must be initialized with a constant at line {stmt.lineno}")
+            exit(1)
+        if stmt.annotation.id == "int":
+            assembly_data += f"{stmt.target.id}: .word {int(stmt.value.value)}\n"
+        elif stmt.annotation.id == "float":
+            assembly_data += f"{stmt.target.id}: .float {float(stmt.value.value)}\n"
+        elif stmt.annotation.id == "str":
+            assembly_data += f"{stmt.target.id}: .asciiz \"{stmt.value.value}\"\n"
+        global_variables[stmt.target.id] = stmt.annotation.id
+        
 
-
-def Handle_Return(stmt: ast.Return, scope_variables: dict, returnlabel: str, assignType):
+def Handle_Return(stmt: ast.Return, scope_variables: dict, returnlabel: str, assignType, level:int):
     global assembly_text
     if isinstance(stmt.value, ast.BinOp):
         Handle_BinOp(stmt.value, scope_variables, assignType)
@@ -514,7 +541,7 @@ def Handle_Return(stmt: ast.Return, scope_variables: dict, returnlabel: str, ass
             assembly_text += f"mov.s $f0, $f0 # return result: {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
     assembly_text += f"j {returnlabel} # jump to {returnlabel} to clean up function\n"
 
-def Handle_If(stmt: ast.If, scope_variables: dict, returnlabel: str, assignType):
+def Handle_If(stmt: ast.If, scope_variables: dict, returnlabel: str, assignType, level:int):
     global assembly_text
     global if_stmt_counter
 
@@ -562,17 +589,17 @@ def Handle_If(stmt: ast.If, scope_variables: dict, returnlabel: str, assignType)
         else:
             raise Exception(f"Error: Unknown comparison in if statement at line {stmt.lineno}")
 
-    Handle_Body(stmt.body, scope_variables, returnlabel, assignType)
+    Handle_Body(stmt.body, scope_variables, returnlabel, assignType, level + 1)
     assembly_text += f"j endIf{if_stmt_counter}\n"
 
     assembly_text += f"iffalse{if_stmt_counter}:\n"
     if len(stmt.orelse) > 0:
-        Handle_Body(stmt.orelse, scope_variables, returnlabel, assignType)
+        Handle_Body(stmt.orelse, scope_variables, returnlabel, assignType, level + 1)
     assembly_text += f"endIf{if_stmt_counter}:\n"
 
     if_stmt_counter += 1
 
-def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assignType):
+def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assignType, level:int):
     global assembly_text
     global while_stmt_counter
 
@@ -619,7 +646,7 @@ def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assig
             assembly_text += f"beq $t0, $t1, endwhile{while_stmt_counter} # {source_lines[stmt.test.lineno - 1][stmt.test.col_offset:stmt.test.end_col_offset].strip()}\n"
         else:
             raise Exception(f"Error: Unknown comparison in if statement at line {stmt.lineno}")
-    Handle_Body(stmt.body, scope_variables, returnlabel, assignType)
+    Handle_Body(stmt.body, scope_variables, returnlabel, assignType, level + 1)
     assembly_text += f"j startWhile{while_stmt_counter}\n"
     assembly_text += f"endwhile{while_stmt_counter}:\n"
 
@@ -627,29 +654,29 @@ def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assig
 
 
 
-def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, assignType):
+def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, assignType, level = -1):
     global assembly_text
     for stmt in body:
         if isinstance(stmt, ast.FunctionDef):
-            Handle_FunctionDef(stmt)
+            Handle_FunctionDef(stmt, level)
         elif isinstance(stmt, ast.AnnAssign):
-            Handle_AnnAssign(stmt, scope_variables, returnlabel)
+            Handle_AnnAssign(stmt, scope_variables, returnlabel, level)
         elif isinstance(stmt, ast.Return):
-            Handle_Return(stmt, scope_variables, returnlabel, assignType)
+            Handle_Return(stmt, scope_variables, returnlabel, assignType, level)
         elif isinstance(stmt, ast.If):
-            Handle_If(stmt, scope_variables, returnlabel, assignType)
+            Handle_If(stmt, scope_variables, returnlabel, assignType, level)
         elif isinstance(stmt, ast.Expr):
             if isinstance(stmt.value, ast.Call):
                 Handle_Call(stmt.value, scope_variables, assignType)
                 assembly_text += f"move $t0, $v0 # move return value of {stmt.value.func.id} to $t0\n"
         elif isinstance(stmt, ast.While):
-            Handle_While(stmt, scope_variables, returnlabel, assignType)
-        elif isinstance(stmt, ast.ImportFrom):
+            Handle_While(stmt, scope_variables, returnlabel, assignType, level)
+        elif isinstance(stmt, ast.ImportFrom) or isinstance(stmt, ast.Global):
             pass
         else:
             raise Exception(f"Error: Unknown statement in body {stmt}")
 
-Handle_Body(tree.body, dict, "", "")
+Handle_Body(tree.body, dict, "", "", 0)
 
 full_asm = assembly_data + assembly_text
 

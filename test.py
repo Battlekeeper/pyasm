@@ -1,6 +1,12 @@
 Module(
     body=[
         ImportFrom(module="std_lib", names=[alias(name="*")], level=0),
+        AnnAssign(
+            target=Name(id="testvar", ctx=Store()),
+            annotation=Name(id="float", ctx=Load()),
+            value=Constant(value=69.0),
+            simple=1,
+        ),
         FunctionDef(
             name="factorial",
             args=arguments(
@@ -48,20 +54,25 @@ Module(
                 posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
             ),
             body=[
-                AnnAssign(
-                    target=Name(id="result", ctx=Store()),
-                    annotation=Name(id="int", ctx=Load()),
-                    value=Call(
-                        func=Name(id="factorial", ctx=Load()),
-                        args=[Constant(value=5)],
-                        keywords=[],
-                    ),
-                    simple=1,
-                ),
+                Global(names=["testvar"]),
                 Expr(
                     value=Call(
                         func=Name(id="print_int", ctx=Load()),
-                        args=[Name(id="result", ctx=Load()), Constant(value=1)],
+                        args=[
+                            Call(
+                                func=Name(id="factorial", ctx=Load()),
+                                args=[Constant(value=5)],
+                                keywords=[],
+                            ),
+                            Constant(value=1),
+                        ],
+                        keywords=[],
+                    )
+                ),
+                Expr(
+                    value=Call(
+                        func=Name(id="print_float", ctx=Load()),
+                        args=[Name(id="testvar", ctx=Load()), Constant(value=1)],
                         keywords=[],
                     )
                 ),
