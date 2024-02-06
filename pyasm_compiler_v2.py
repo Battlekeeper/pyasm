@@ -1,24 +1,12 @@
 import ast
 import os
-import argparse
 import sys
+import argparse
 
-'''
-if len(sys.argv) < 2:
-    print("Usage: python3 pyasm_compiler.py <input_file> <output_file>")
-    exit(1)
-input_file = sys.argv[1]
-output_file = "out.s"
-if len(sys.argv) == 3:
-    output_file = sys.argv[2]
-
-if not os.path.isfile(input_file):
-    print(f"Error: {input_file} does not exist")
-    exit(1)
-'''
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-raw', action='store_true', help="Output raw mips assembly without pseudo-instructions", default=False, required=False)
+parser.add_argument('-nocomments', action='store_true', help="Output assembly without comments", default=False, required=False)
 
 parser.add_argument('source', type=str, help="The source file to compile")
 parser.add_argument('out', type=str, help="The output file to write the assembly to", default="out.s")
@@ -28,42 +16,33 @@ options = parser.parse_args()
 
 variables = dict()
 file_data = open(options.source).read()
+
+file_lines = file_data.splitlines()
+line_number = 0
+for line_number, line in enumerate(file_lines, start=1):
+    if "std_lib" in line:
+        break
+
+file_lines[line_number-1] = open("std_lib.py").read().replace("def syscall(a: int = 0, b:int = 0) -> void:\n    pass", "")
+file_data = "\n".join(file_lines)
+
+
 source_lines = file_data.split("\n")
 tree = ast.parse(file_data)
-print("\n" + ast.dump(tree) + "\n")
+open("tree.py", "w").write(ast.dump(tree))
 
 assembly_data = ".data\n"
 assembly_text = ".text\n.globl main\n"
 
 
-std_functions_asm = dict()
-std_functions_asm["print_int"] = [
-    [],
-    "print_int:\nli $v0, 1\nsyscall\nbne $a1, $zero, print_newline\njr $ra",
-]
-std_functions_asm["print_float"] = [
-    ['float_format: .asciiz "%f"'],
-    """print_float:\nli   $v0, 2\nmov.s $f12, $f12\nla   $a0, float_format\nsyscall\nbne $a1, $zero, print_newline\njr   $ra""",
-]
-std_functions_asm["print_newline"] = [
-    [],
-    """print_newline:\nli   $v0, 11\nli   $a0, '\\n'\nsyscall\njr   $ra""",
-]
-std_functions_asm["terminate"] = [
-    [],
-    "terminate:\nli   $v0, 10\nsyscall",
-]
 
 functions = dict()
+functions_args = dict()
 global_variables = dict()
 
 if_stmt_counter = 0
 while_stmt_counter = 0
 
-for func in std_functions_asm:
-    for line in std_functions_asm[func][0]:
-        assembly_data += f"{line}\n"
-    assembly_text += f"{std_functions_asm[func][1]}\n"
 
 def isBinOpFloat(stmt: ast.BinOp, scope_variables: dict):
     if isinstance(stmt.left, ast.BinOp):
@@ -128,7 +107,7 @@ def isCompareFloat(stmt: ast.Compare, scope_variables: dict):
             return True
     return False
 
-def allocate_variables(body: ast.stmt) -> dict:
+def allocate_variables(body: ast.stmt, assignType:str = None) -> dict:
     variables = dict()
     for node in body.body:
         if isinstance(node, ast.AnnAssign):
@@ -137,6 +116,11 @@ def allocate_variables(body: ast.stmt) -> dict:
                 if lookFor2BinOps(node.value):
                     variables["lbin"] = node.annotation.id
                     variables["rbin"] = node.annotation.id
+        elif isinstance(node, ast.Return):
+            if (isinstance(node.value, ast.BinOp)):
+                if lookFor2BinOps(node.value):
+                    variables["lbin"] = assignType
+                    variables["rbin"] = assignType
         else:
             if "body" in node._fields:
                 variables.update(allocate_variables(node))
@@ -148,6 +132,11 @@ def allocate_variables(body: ast.stmt) -> dict:
                         if lookFor2BinOps(node.value):
                             variables["lbin"] = node.annotation.id
                             variables["rbin"] = node.annotation.id
+                elif isinstance(node, ast.Return):
+                    if (isinstance(node.value, ast.BinOp)):
+                        if lookFor2BinOps(node.value):
+                            variables["lbin"] = assignType
+                            variables["rbin"] = assignType
                 else:
                     if "body" in node._fields:
                         variables.update(allocate_variables(node))
@@ -157,8 +146,12 @@ def lookFor2BinOps(binOp: ast.BinOp) -> True:
     if isinstance(binOp.left, ast.BinOp) and isinstance(binOp.right, ast.BinOp):
         return True
     elif isinstance(binOp.left, ast.BinOp):
+        if (binOp.left.left, ast.BinOp) or (binOp.left.right, ast.BinOp):
+            return True
         return lookFor2BinOps(binOp.left)
     elif isinstance(binOp.right, ast.BinOp):
+        if (binOp.right.left, ast.BinOp) or (binOp.right.right, ast.BinOp):
+            return True
         return lookFor2BinOps(binOp.right)
     else:
         return False
@@ -190,19 +183,21 @@ def Handle_FunctionDef(stmt: ast.FunctionDef, level:int):
     global global_variables
 
     functions[stmt.name] = stmt.returns.id
+    functions_args[stmt.name] = []
 
     stack_size = 8
     full_stack_size = None
     returnlabel = f"return{stmt.name}"
 
     scope_variables = dict()
-    scope_variables.update(allocate_variables(stmt))
+    scope_variables.update(allocate_variables(stmt, stmt.returns.id))
 
     for name in scope_variables:
         if scope_variables[name] == "int" or scope_variables[name] == "float":
             stack_size += 4
 
     for arg in stmt.args.args:
+        functions_args[stmt.name].append(arg.annotation.id)
         scope_variables[arg.arg] = arg.annotation.id
         if scope_variables[arg.arg] == "int" or scope_variables[arg.arg] == "float":
             stack_size += 4
@@ -272,7 +267,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                     else:
                         assembly_text += f"lw $a{index - 1}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
                 elif scope_variables[arg.id][0] == "float":
-                    assembly_text += f"lwc1 $f{index + 11}, {scope_variables[arg.id][1]} # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
+                    assembly_text += f"lwc1 $f{index + 11}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
+                elif scope_variables[arg.id] == "str":
+                    assembly_text += f"la $a{index - 1}, {arg.id} # load pointer of argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
             elif isinstance(arg, ast.Constant):
                 if isinstance(arg.value, int):
                     if index == 0:
@@ -298,6 +295,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                         assembly_text += f"move $a{index - 1}, $v0 # move return value of {stmt.func.id} to $a{index - 1}\n"
                 elif functions[arg.func.id] == "float":
                     assembly_text += f"mov.s $f{index + 11}, $f0\n # move return value of {stmt.func.id} to $f{index + 11}"
+        if stmt.args[0].value == 2:
+            #assembly_text += f"la $a0, float_format # load string to format the float into $a0\n"
+            pass
         assembly_text += f"syscall # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
     else:
         for index,arg in enumerate(stmt.args):
@@ -312,16 +312,19 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                         assembly_text += f"lw $a{index}, {arg.id} # load global argument'{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
                     elif scope_variables[arg.id] == "float":
                         assembly_text += f"lwc1 $f{index + 12}, {arg.id} # load global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+                    elif scope_variables[arg.id] == "str":
+                        assembly_text += f"la $a{index}, {arg.id} # load pointer of global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
             elif isinstance(arg, ast.Constant):
                 if isinstance(arg.value, int):
                     assembly_text += f"li $a{index}, {arg.value} # load immediate argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
                 elif isinstance(arg.value, float):
                     assembly_text += f"li.s $f{index + 12}, {arg.value} # load immediate argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
             elif isinstance(arg, ast.BinOp):
-                Handle_BinOp(arg, scope_variables, assignType)
-                if assignType == "int":
+                # BinOP handles the conversion automatically here
+                Handle_BinOp(arg, scope_variables, functions_args[stmt.func.id][index])
+                if functions_args[stmt.func.id][index] == "int":
                     assembly_text += f"move $a{index}, $t0 # move result of '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' to $a{index}\n"
-                elif assignType == "float":
+                elif functions_args[stmt.func.id][index] == "float":
                     assembly_text += f"mov.s $f{index + 12}, $f0 # move result of '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' to $f{index + 12}\n"
             elif isinstance(arg, ast.Call):
                 Handle_Call(arg, scope_variables, assignType)
@@ -429,14 +432,21 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
             assembly_text += f"mflo $t0 # move integer result of multiplication to $t0\n"
         elif assignType == "float":
             assembly_text += f"mul.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
+            #assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
     elif isinstance(stmt.op, ast.Div):
         if assignType == "int":
             assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $t0 # move integer result of division to $f0\n"
+            assembly_text += f"mflo $t0 # move integer result of division to $t0\n"
         elif assignType == "float":
             assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            assembly_text += f"mflo $f0\n # move floating point result of division to $f0"
+            #assembly_text += f"mflo $f0 # move floating point result of division to $f0\n"
+    elif isinstance(stmt.op, ast.Mod):
+        if assignType == "int":
+            assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mfhi $t0 # move integer remainder of division to $t0\n"
+        elif assignType == "float":
+            assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mfhi $f0\n # move floating point remainder of division to $f0"
 
 def Handle_Constant(stmt: ast.Constant, scope_variables: dict, assignType: str, reg = "0"):
     global assembly_text
@@ -530,6 +540,48 @@ def Handle_AnnAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: st
             assembly_data += f"{stmt.target.id}: .asciiz \"{stmt.value.value}\"\n"
         global_variables[stmt.target.id] = stmt.annotation.id
         
+def Handle_AugAssign(stmt: ast.AnnAssign, scope_variables: dict, returnlabel: str, level:int):
+    global assembly_text
+    global assembly_data
+    global global_variables
+
+    Handle_Value(stmt.value, scope_variables, scope_variables[stmt.target.id][0])
+
+
+    if scope_variables[stmt.target.id][0] == "int":
+        assembly_text += f"lw $t1, {scope_variables[stmt.target.id][1]}($fp) # load argument '{source_lines[stmt.target.lineno - 1][stmt.target.col_offset:stmt.target.end_col_offset].strip()}' from stack\n"
+    elif scope_variables[stmt.target.id][0] == "float":
+        assembly_text += f"lwc1 $f1, {scope_variables[stmt.target.id][1]}($fp) # load argument '{source_lines[stmt.target.lineno - 1][stmt.target.col_offset:stmt.target.end_col_offset].strip()}' from stack\n"
+
+    if  isinstance(stmt.op, ast.Add):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"add $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"add.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.Sub):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"sub $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"sub.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.Mult):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"mul $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $t0 # move integer result of multiplication to $t0\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"mul.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            #assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
+    elif isinstance(stmt.op, ast.Div):
+        if scope_variables[stmt.target.id][0] == "int":
+            assembly_text += f"div $t0, $t1, $t0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $t0 # move integer result of division to $f0\n"
+        elif scope_variables[stmt.target.id][0] == "float":
+            assembly_text += f"div.s $f0, $f1, $f0 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            #assembly_text += f"mflo $f0\n # move floating point result of division to $f0"
+    
+    if scope_variables[stmt.target.id][0] == "int":
+        assembly_text += f"sw $t0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
+    elif scope_variables[stmt.target.id][0] == "float":
+        assembly_text += f"swc1 $f0, {scope_variables[stmt.target.id][1]}($fp) # assign {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()} in stack\n"
 
 def Handle_Return(stmt: ast.Return, scope_variables: dict, returnlabel: str, assignType, level:int):
     global assembly_text
@@ -662,10 +714,6 @@ def Handle_While(stmt: ast.While, scope_variables: dict, returnlabel: str, assig
     assembly_text += f"j startWhile{while_stmt_counter}\n"
     assembly_text += f"endwhile{while_stmt_counter}:\n"
 
-
-
-
-
 def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, assignType, level = -1):
     global assembly_text
     for stmt in body:
@@ -673,6 +721,8 @@ def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, a
             Handle_FunctionDef(stmt, level)
         elif isinstance(stmt, ast.AnnAssign):
             Handle_AnnAssign(stmt, scope_variables, returnlabel, level)
+        elif isinstance(stmt, ast.AugAssign):
+            Handle_AugAssign(stmt, scope_variables, returnlabel, level)
         elif isinstance(stmt, ast.Return):
             Handle_Return(stmt, scope_variables, returnlabel, assignType, level)
         elif isinstance(stmt, ast.If):
@@ -683,7 +733,7 @@ def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, a
                 assembly_text += f"move $t0, $v0 # move return value of {stmt.value.func.id} to $t0\n"
         elif isinstance(stmt, ast.While):
             Handle_While(stmt, scope_variables, returnlabel, assignType, level)
-        elif isinstance(stmt, ast.ImportFrom) or isinstance(stmt, ast.Global):
+        elif isinstance(stmt, ast.ImportFrom) or isinstance(stmt, ast.Global) or isinstance(stmt, ast.ClassDef) or isinstance(stmt, ast.Pass):
             pass
         else:
             raise Exception(f"Error: Unknown statement in body {stmt}")
@@ -701,6 +751,24 @@ for index, line in enumerate(lines):
                 lines.pop(index + 1)
 
 if options.raw:
-    print("raw")
-    
+    # replace pseudo instructions with real instructions
+    for index, line in enumerate(lines):
+        comment = line.split("#")
+        if len(comment) > 1:
+            comment = "# " + comment[1]
+        else:
+            comment = ""
+        linearr = line.split(" ")
+        if linearr[0] == "move":
+            lines[index] = f"addu {linearr[1]}, $zero, {linearr[2]} {comment}"
+        elif linearr[0] == "li":
+            lines[index] = f"ori {linearr[1]}, $zero, {linearr[2]} {comment}"
+        elif linearr[0] == "lw":
+            pass
+    pass
+
+if options.nocomments:
+    for index, line in enumerate(lines):
+        lines[index] = line.split("#")[0]
+
 open(options.out, "w").write("\n".join(lines))
