@@ -56,7 +56,7 @@ def isBinOpFloat(stmt: ast.BinOp, scope_variables: dict):
         if isBinOpFloat(stmt.left, scope_variables):
             return True
     elif isinstance(stmt.left, ast.Call):
-        if isCallFloat(stmt.left, scope_variables):
+        if isCallFloat(stmt.left):
             return True
     elif isinstance(stmt.left, ast.Constant):
         if isinstance(stmt.left.value, float):
@@ -69,7 +69,7 @@ def isBinOpFloat(stmt: ast.BinOp, scope_variables: dict):
         if isBinOpFloat(stmt.right, scope_variables):
             return True
     elif isinstance(stmt.right, ast.Call):
-        if isCallFloat(stmt.right, scope_variables):
+        if isCallFloat(stmt.right):
             return True
     elif isinstance(stmt.right, ast.Constant):
         if isinstance(stmt.right.value, float):
@@ -80,7 +80,7 @@ def isBinOpFloat(stmt: ast.BinOp, scope_variables: dict):
 
     return False
 
-def isCallFloat(stmt: ast.Call, scope_variables: dict):
+def isCallFloat(stmt: ast.Call):
     if stmt.func.id in functions:
         if functions[stmt.func.id] == "float":
             return True
@@ -91,7 +91,7 @@ def isCompareFloat(stmt: ast.Compare, scope_variables: dict):
         if isBinOpFloat(stmt.left, scope_variables):
             return True
     elif isinstance(stmt.left, ast.Call):
-        if isCallFloat(stmt.left, scope_variables):
+        if isCallFloat(stmt.left):
             return True
     elif isinstance(stmt.left, ast.Constant):
         if isinstance(stmt.left.value, float):
@@ -104,7 +104,7 @@ def isCompareFloat(stmt: ast.Compare, scope_variables: dict):
         if isBinOpFloat(stmt.comparators[0], scope_variables):
             return True
     elif isinstance(stmt.comparators[0], ast.Call):
-        if isCallFloat(stmt.comparators[0], scope_variables):
+        if isCallFloat(stmt.comparators[0]):
             return True
     elif isinstance(stmt.comparators[0], ast.Constant):
         if isinstance(stmt.comparators[0].value, float):
