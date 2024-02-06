@@ -225,7 +225,7 @@ def Handle_FunctionDef(stmt: ast.FunctionDef, level:int):
 
     #setup function and stack frame
     assembly_text += f"{stmt.name}: # {args_string} -> {stmt.returns.id}\n"
-    assembly_text += f"addi $sp, $sp, -{stack_size} # allocate stack\n"           #allocate stack
+    assembly_text += f"addi $sp, $sp, -{stack_size} # allocate stack {list(scope_variables.keys()) + ['$ra', '$fp']} total of {full_stack_size} bytes\n"           #allocate stack
     assembly_text += f"sw $fp, {stack_size - 4}($sp) # save old frame pointer\n"  #save old frame pointer
     assembly_text += f"move $fp, $sp # set new frame pointer\n"                   #set new frame pointer
     assembly_text += f"sw $ra, {stack_size - 8}($sp) # save return address\n"    #save return address
@@ -352,16 +352,16 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
         Handle_BinOp(stmt.left, scope_variables, assignType)
         if "lbin" in scope_variables:
             if scope_variables["lbin"][0] == "int":
-                assembly_text += f"sw $t0 {scope_variables['lbin'][1]}($fp)\n"
+                assembly_text += f"sw $t0, {scope_variables['lbin'][1]}($fp)\n"
             elif scope_variables["lbin"][0] == "float":
-                assembly_text += f"swc1 $f0 {scope_variables['lbin'][1]}($fp)\n"
+                assembly_text += f"swc1 $f0, {scope_variables['lbin'][1]}($fp)\n"
     if isinstance(stmt.right, ast.BinOp):
         Handle_BinOp(stmt.right, scope_variables, assignType)
         if "rbin" in scope_variables:
             if scope_variables["rbin"][0] == "int":
-                assembly_text += f"sw $t0 {scope_variables['rbin'][1]}($fp)\n"
+                assembly_text += f"sw $t0, {scope_variables['rbin'][1]}($fp)\n"
             elif scope_variables["rbin"][0] == "float":
-                assembly_text += f"swc1 $f0 {scope_variables['rbin'][1]}($fp)\n"
+                assembly_text += f"swc1 $f0, {scope_variables['rbin'][1]}($fp)\n"
         else:
             if assignType == "int":
                 assembly_text += f"move $t1, $t0\n"
@@ -373,18 +373,18 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
         assembly_text += f"move $t0, $v0 # move return value of {stmt.left.func.id} to $t0\n"
         if "lbin" in scope_variables:
             if scope_variables["lbin"][0] == "int":
-                assembly_text += f"sw $t0 {scope_variables['lbin'][1]}($fp)\n"
+                assembly_text += f"sw $t0, {scope_variables['lbin'][1]}($fp)\n"
             elif scope_variables["lbin"][0] == "float":
-                assembly_text += f"swc1 $f0 {scope_variables['lbin'][1]}($fp)\n"
+                assembly_text += f"swc1 $f0, {scope_variables['lbin'][1]}($fp)\n"
     if isinstance(stmt.right, ast.Call):
         Handle_Call(stmt.right, scope_variables, assignType)
         if "rbin" in scope_variables:
             if scope_variables["rbin"][0] == "int":
                 assembly_text += f"move $t0, $v0 # move return value of {stmt.right.func.id} to $t0\n"
-                assembly_text += f"sw $t0 {scope_variables['rbin'][1]}($fp)\n"
+                assembly_text += f"sw, $t0, {scope_variables['rbin'][1]}($fp)\n"
             elif scope_variables["rbin"][0] == "float":
                 assembly_text += f"mov.s $f0, $f0 # move return value of {stmt.right.func.id} to $f0\n"
-                assembly_text += f"swc1 $f0 {scope_variables['rbin'][1]}($fp)\n"
+                assembly_text += f"swc1 $f0, {scope_variables['rbin'][1]}($fp)\n"
         else:
             if assignType == "int":
                 assembly_text += f"move $t1, $v0 # move result of {stmt.right.func.id} to $t1\n"
@@ -770,6 +770,14 @@ for index, line in enumerate(lines):
         if line.split("#")[0].strip() == "move $t0, $v0":
             if lines[index + 1].split("#")[0].strip() == "move $t0, $v0":
                 lines.pop(index + 1)
+                pass
+        if len(line.split("#")[0].split()) > 0 and len(lines[index + 1].split("#")[0].split()) > 0:
+            arr1 = line.split("#")[0].split()
+            arr2 = lines[index + 1].split("#")[0].split()
+            if arr1[0].strip() == "sw" and arr2[0].strip() == "lw":
+                    if arr1[1].strip() == arr2[1].strip() and arr1[2].strip() == arr2[2].strip():
+                         lines.pop(index + 1)
+    
 
 if options.raw:
     # replace pseudo instructions with real instructions
