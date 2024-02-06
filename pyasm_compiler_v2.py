@@ -29,11 +29,12 @@ file_data = "\n".join(file_lines)
 
 source_lines = file_data.split("\n")
 tree = ast.parse(file_data)
-open("tree.py", "w").write(ast.dump(tree))
+tree_dump = ast.dump(tree, indent=4)
+
+open("tree.py", "w").write(tree_dump)
 
 assembly_data = ".data\n"
 assembly_text = ".text\n.globl main\n"
-
 
 
 functions = dict()
@@ -327,6 +328,7 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                 elif functions_args[stmt.func.id][index] == "float":
                     assembly_text += f"mov.s $f{index + 12}, $f0 # move result of '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' to $f{index + 12}\n"
             elif isinstance(arg, ast.Call):
+                # TODO: Convert return value of function to proper type
                 Handle_Call(arg, scope_variables, assignType)
                 if functions[arg.func.id] == "int":
                     assembly_text += f"move $a{index}, $v0 # move return value of {stmt.func.id} to $a{index}\n"
@@ -336,6 +338,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
 
 def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
     global assembly_text
+
+    # TODO: Prevent bitwise operations on floating point numbers at compile time
+
     # load values into proper registers
     if isinstance(stmt.left, ast.BinOp):
         Handle_BinOp(stmt.left, scope_variables, assignType)
@@ -447,6 +452,16 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
         elif assignType == "float":
             assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
             assembly_text += f"mfhi $f0\n # move floating point remainder of division to $f0"
+    elif isinstance(stmt.op, ast.LShift):
+        assembly_text += f"sll $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.RShift):
+        assembly_text += f"srl $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.BitOr):
+        assembly_text += f"or $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.BitXor):
+        assembly_text += f"xor $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+    elif isinstance(stmt.op, ast.BitAnd):
+        assembly_text += f"and $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
 
 def Handle_Constant(stmt: ast.Constant, scope_variables: dict, assignType: str, reg = "0"):
     global assembly_text
