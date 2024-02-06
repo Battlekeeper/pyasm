@@ -1,0 +1,10 @@
+from std_lib import *
+
+def harmonic(n: float) -> float:
+    if n == 1.0:
+        return 1.0
+    else:
+        return 1.0 / n + harmonic(n - 1.0)
+
+def main() -> void:
+    print_float(harmonic(5.0), 1)
