@@ -1,7 +1,9 @@
 import ast
 import os
+import argparse
 import sys
 
+'''
 if len(sys.argv) < 2:
     print("Usage: python3 pyasm_compiler.py <input_file> <output_file>")
     exit(1)
@@ -13,9 +15,19 @@ if len(sys.argv) == 3:
 if not os.path.isfile(input_file):
     print(f"Error: {input_file} does not exist")
     exit(1)
+'''
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-raw', action='store_true', help="Output raw mips assembly without pseudo-instructions", default=False, required=False)
+
+parser.add_argument('source', type=str, help="The source file to compile")
+parser.add_argument('out', type=str, help="The output file to write the assembly to", default="out.s")
+
+options = parser.parse_args()
+
 
 variables = dict()
-file_data = open(input_file).read()
+file_data = open(options.source).read()
 source_lines = file_data.split("\n")
 tree = ast.parse(file_data)
 print("\n" + ast.dump(tree) + "\n")
@@ -688,5 +700,7 @@ for index, line in enumerate(lines):
             if lines[index + 1].split("#")[0].strip() == "move $t0, $v0":
                 lines.pop(index + 1)
 
+if options.raw:
+    print("raw")
     
-open(output_file, "w").write("\n".join(lines))
+open(options.out, "w").write("\n".join(lines))
