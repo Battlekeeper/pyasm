@@ -7,6 +7,10 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('-raw', action='store_true', help="Output raw mips assembly without pseudo-instructions", default=False, required=False)
 parser.add_argument('-nocomments', action='store_true', help="Output assembly without comments", default=False, required=False)
+parser.add_argument('-tree', action='store_true', help="Output abstract syntax tree to tree.py", default=False, required=False)
+parser.add_argument('-treeverbose', action='store_true', help="Verbose output of abstract syntax tree to tree.py", default=False, required=False)
+
+
 
 parser.add_argument('source', type=str, help="The source file to compile")
 parser.add_argument('out', type=str, help="The output file to write the assembly to", default="out.s")
@@ -29,9 +33,11 @@ file_data = "\n".join(file_lines)
 
 source_lines = file_data.split("\n")
 tree = ast.parse(file_data)
-tree_dump = ast.dump(tree, indent=4)
 
-open("tree.py", "w").write(tree_dump)
+if options.tree or options.treeverbose:
+    tree_dump = ast.dump(tree, indent=4, include_attributes=options.treeverbose)
+    open("tree.py", "w").write(tree_dump)
+
 
 assembly_data = ".data\n"
 assembly_text = ".text\n.globl main\n"
