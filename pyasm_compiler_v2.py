@@ -43,8 +43,18 @@ assembly_data = ".data\n"
 assembly_text = ".text\n.globl main\n"
 
 
+cast_functions = ["float", "int"]
+
 functions = dict()
+functions["float"] = "float"
+functions["int"] = "int"
+
+
 functions_args = dict()
+functions_args["float"] = ["int"]
+functions_args["int"] = ["float"]
+
+
 global_variables = dict()
 
 if_stmt_counter = 0
@@ -326,13 +336,65 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
             elif isinstance(arg, ast.Call):
                 Handle_Call(arg, scope_variables, assignType)
                 if functions[arg.func.id] == "int":
-                    # v0 already contains the return value of the previous function so no need to move it
                     if index != 0:
-                        assembly_text += f"move $a{index - 1}, $v0 # move return value of {stmt.func.id} to $a{index - 1}\n"
+                        if stmt.func.id in cast_functions:
+                            assembly_text += f"move $a{index - 1}, $t0 # move return value of cast {stmt.func.id} to $a{index - 1}\n"
+                        else:
+                            # v0 already contains the return value of the previous function so no need to move it
+                            assembly_text += f"move $a{index - 1}, $v0 # move return value of {stmt.func.id} to $a{index - 1}\n"
                 elif functions[arg.func.id] == "float":
-                    assembly_text += f"mov.s $f{index + 11}, $f0\n # move return value of {stmt.func.id} to $f{index + 11}"
+                    if not stmt.func.id in cast_functions:
+                        # value is already in $f0
+                        assembly_text += f"mov.s $f{index + 11}, $f0\n # move return value of {stmt.func.id} to $f{index + 11}"
 
         assembly_text += f"syscall # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+        
+    elif stmt.func.id in cast_functions:
+        for index,arg in enumerate(stmt.args):
+            if isinstance(arg, ast.Name):
+                if not isinstance(scope_variables[arg.id], str):
+                    if scope_variables[arg.id][0] == "int":
+                        assembly_text += f"lw $a{index}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
+                    elif scope_variables[arg.id][0] == "float":
+                        assembly_text += f"lwc1 $f{index}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
+                else:
+                    if scope_variables[arg.id] == "int":
+                        assembly_text += f"lw $a{index}, {arg.id} # load global argument'{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+                    elif scope_variables[arg.id] == "float":
+                        assembly_text += f"lwc1 $f{index}, {arg.id} # load global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+                    elif scope_variables[arg.id] == "str":
+                        assembly_text += f"la $a{index}, {arg.id} # load pointer of global argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+            elif isinstance(arg, ast.Constant):
+                if isinstance(arg.value, int):
+                    assembly_text += f"li $a{index}, {arg.value} # load immediate argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+                elif isinstance(arg.value, float):
+                    assembly_text += f"li.s $f{index}, {arg.value} # load immediate argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
+            elif isinstance(arg, ast.BinOp):
+                # BinOP handles the conversion automatically here
+                Handle_BinOp(arg, scope_variables, functions_args[stmt.func.id][index])
+                if functions_args[stmt.func.id][index] == "int":
+                    assembly_text += f"move $a{index}, $t0 # move result of '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' to $a{index}\n"
+                elif functions_args[stmt.func.id][index] == "float":
+                    # Value already in f0
+                    #assembly_text += f"mov.s $f{index + 12}, $f0 # move result of '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' to $f{index + 12}\n"
+                    pass
+            elif isinstance(arg, ast.Call):
+                        # TODO: Convert return value of function to proper type
+                        Handle_Call(arg, scope_variables, assignType)
+                        if functions[arg.func.id] == "int":
+                            assembly_text += f"move $a{index}, $v0 # move return value of cast {stmt.func.id} to $a{index}\n"
+                        elif functions[arg.func.id] == "float":
+                            if not stmt.func.id in cast_functions:
+                                #value is already in $f0
+                                #assembly_text += f"mov.s $f{index + 12}, $f0\n # move return value of {stmt.func.id} to $f{index + 12}"
+                                pass
+
+        if stmt.func.id == "float":
+            assembly_text += f"mtc1 $a0, $f0 # move integer to coprocessor\n"
+            assembly_text += f"cvt.s.w $f0, $f0 # cast int to float {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+        elif stmt.func.id == "int":
+            assembly_text += f"cvt.w.s $f0, $f0 # cast float to int {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mfc1 $v0, $f0 # move int from $f0 to integer register {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
     else:
         for index,arg in enumerate(stmt.args):
             if isinstance(arg, ast.Name):
@@ -340,7 +402,7 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                     if scope_variables[arg.id][0] == "int":
                         assembly_text += f"lw $a{index}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack\n"
                     elif scope_variables[arg.id][0] == "float":
-                        assembly_text += f"lwc1 $f{index + 12}, {scope_variables[arg.id][1]} # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
+                        assembly_text += f"lwc1 $f{index + 12}, {scope_variables[arg.id][1]}($fp) # load argument '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' from stack($fp)\n"
                 else:
                     if scope_variables[arg.id] == "int":
                         assembly_text += f"lw $a{index}, {arg.id} # load global argument'{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}'\n"
@@ -361,18 +423,23 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                 elif functions_args[stmt.func.id][index] == "float":
                     assembly_text += f"mov.s $f{index + 12}, $f0 # move result of '{source_lines[arg.lineno - 1][arg.col_offset:arg.end_col_offset].strip()}' to $f{index + 12}\n"
             elif isinstance(arg, ast.Call):
-                # TODO: Convert return value of function to proper type
                 Handle_Call(arg, scope_variables, assignType)
                 if functions[arg.func.id] == "int":
-                    assembly_text += f"move $a{index}, $v0 # move return value of {stmt.func.id} to $a{index}\n"
+                    if stmt.func.id in cast_functions:
+                        assembly_text += f"move $a{index}, $t0 # move return value of cast {stmt.func.id} to $a{index}\n"
+                    else:
+                        # v0 already contains the return value of the previous function so no need to move it
+                        assembly_text += f"move $a{index}, $v0 # move return value of {stmt.func.id} to $a{index}\n"
                 elif functions[arg.func.id] == "float":
-                    assembly_text += f"mov.s $f{index + 12}, $f0\n # move return value of {stmt.func.id} to $f{index + 12}"
+                    if not stmt.func.id in cast_functions:
+                        # value is already in $f0
+                        assembly_text += f"mov.s $f{index + 12}, $f0\n # move return value of {stmt.func.id} to $f{index + 12}"
         assembly_text += f"jal {stmt.func.id} # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
 
 def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
     global assembly_text
 
-    if checkFloatBitWise(stmt, scope_variables):
+    if checkFloatBitWise(stmt, scope_variables) and stmt.op in [ast.LShift, ast.RShift(), ast.BitOr(), ast.BitXor(), ast.BitAnd()]:
         print(f"Error: Cannot perform bitwise operations on floating point numbers at line {stmt.lineno} : {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}")
         sys.exit(1)
 
@@ -397,6 +464,7 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
             elif assignType == "float":
                 assembly_text += f"mov.s $f1, $f0\n"
 
+    # TODO: fix type casts for left and right sites
     if isinstance(stmt.left, ast.Call):
         Handle_Call(stmt.left, scope_variables, assignType)
         assembly_text += f"move $t0, $v0 # move return value of {stmt.left.func.id} to $t0\n"
@@ -565,7 +633,9 @@ def Handle_Value(stmt: ast.stmt, scope_variables: dict, assignType: str):
         Handle_Constant(stmt, scope_variables, assignType)
     elif isinstance(stmt, ast.Call):
         Handle_Call(stmt, scope_variables, assignType)
-        assembly_text += f"move $t0, $v0 # move return value of {stmt.func.id} to $t0\n"
+        if (stmt.func.id in functions):
+            if (functions[stmt.func.id] == "int"):
+                assembly_text += f"move $t0, $v0 # move return value of {stmt.func.id} to $t0\n"
     elif isinstance(stmt, ast.Compare):
         Handle_Compare(stmt, scope_variables, assignType)
     else:
@@ -787,7 +857,9 @@ def Handle_Body(body: list[ast.stmt], scope_variables: dict, returnlabel: str, a
         elif isinstance(stmt, ast.Expr):
             if isinstance(stmt.value, ast.Call):
                 Handle_Call(stmt.value, scope_variables, assignType)
-                assembly_text += f"move $t0, $v0 # move return value of {stmt.value.func.id} to $t0\n"
+                if (stmt.value.func.id in functions):
+                    if (functions[stmt.value.func.id] == "int"):
+                        assembly_text += f"move $t0, $v0 # move return value of {stmt.value.func.id} to $t0\n"
         elif isinstance(stmt, ast.While):
             Handle_While(stmt, scope_variables, returnlabel, assignType, level)
         elif isinstance(stmt, ast.ImportFrom) or isinstance(stmt, ast.Global) or isinstance(stmt, ast.ClassDef) or isinstance(stmt, ast.Pass):
@@ -813,7 +885,6 @@ for index, line in enumerate(lines):
             if arr1[0].strip() == "sw" and arr2[0].strip() == "lw":
                     if arr1[1].strip() == arr2[1].strip() and arr1[2].strip() == arr2[2].strip():
                          lines.pop(index + 1)
-    
 
 if options.raw:
     # replace pseudo instructions with real instructions
