@@ -265,6 +265,7 @@ def Handle_FunctionDef(stmt: ast.FunctionDef, level:int):
 
 def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
     global assembly_text
+
     if stmt.func.id == "syscall":
         for index,arg in enumerate(stmt.args):
             if isinstance(arg, ast.Name):
@@ -302,9 +303,7 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
                         assembly_text += f"move $a{index - 1}, $v0 # move return value of {stmt.func.id} to $a{index - 1}\n"
                 elif functions[arg.func.id] == "float":
                     assembly_text += f"mov.s $f{index + 11}, $f0\n # move return value of {stmt.func.id} to $f{index + 11}"
-        if stmt.args[0].value == 2:
-            #assembly_text += f"la $a0, float_format # load string to format the float into $a0\n"
-            pass
+
         assembly_text += f"syscall # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
     else:
         for index,arg in enumerate(stmt.args):
@@ -443,7 +442,6 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
             assembly_text += f"mflo $t0 # move integer result of multiplication to $t0\n"
         elif assignType == "float":
             assembly_text += f"mul.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
-            #assembly_text += f"mflo $f0 # move floating point result of multiplication to $f0\n"
     elif isinstance(stmt.op, ast.Div):
         if assignType == "int":
             assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
@@ -451,6 +449,14 @@ def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
         elif assignType == "float":
             assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
             #assembly_text += f"mflo $f0 # move floating point result of division to $f0\n"
+    elif isinstance(stmt.op, ast.FloorDiv):
+        if assignType == "int":
+            assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"mflo $t0 # move integer result of division to $t0\n"
+        elif assignType == "float":
+            assembly_text += f"div.s $f0, $f0, $f1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
+            assembly_text += f"cvt.w.s $f0, $f0 # convert float to int to floor it\n"
+            assembly_text += f"cvt.s.w $f0, $f0 # convert int back to a float\n"
     elif isinstance(stmt.op, ast.Mod):
         if assignType == "int":
             assembly_text += f"div $t0, $t0, $t1 # {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}\n"
