@@ -183,6 +183,34 @@ def bodyHasWhileStmt(body: list[ast.stmt]) -> bool:
                     return True
     return False
 
+def checkFloatBitWise(stmt: ast.BinOp, scope_variables: dict) -> bool:
+    if isinstance(stmt.left, ast.BinOp):
+        if checkFloatBitWise(stmt.left, scope_variables):
+            return True
+    elif isinstance(stmt.left, ast.Call):
+        if isCallFloat(stmt.left):
+            return True
+    elif isinstance(stmt.left, ast.Constant):
+        if isinstance(stmt.left.value, float):
+            return True
+    elif isinstance(stmt.left, ast.Name):
+        if scope_variables[stmt.left.id][0] == "float":
+            return True
+
+    if isinstance(stmt.right, ast.BinOp):
+        if checkFloatBitWise(stmt.right, scope_variables):
+            return True
+    elif isinstance(stmt.right, ast.Call):
+        if isCallFloat(stmt.right):
+            return True
+    elif isinstance(stmt.right, ast.Constant):
+        if isinstance(stmt.right.value, float):
+            return True
+    elif isinstance(stmt.right, ast.Name):
+        if scope_variables[stmt.right.id][0] == "float":
+            return True
+
+    return False
 
 def Handle_FunctionDef(stmt: ast.FunctionDef, level:int):
     global assembly_text
@@ -344,7 +372,9 @@ def Handle_Call(stmt: ast.Call, scope_variables: dict, assignType: str):
 def Handle_BinOp(stmt: ast.BinOp, scope_variables: dict, assignType: str):
     global assembly_text
 
-    # TODO: Prevent bitwise operations on floating point numbers at compile time
+    if checkFloatBitWise(stmt, scope_variables):
+        print(f"Error: Cannot perform bitwise operations on floating point numbers at line {stmt.lineno} : {source_lines[stmt.lineno - 1][stmt.col_offset:stmt.end_col_offset].strip()}")
+        sys.exit(1)
 
     # load values into proper registers
     if isinstance(stmt.left, ast.BinOp):
