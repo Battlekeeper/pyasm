@@ -2,6 +2,7 @@ import ast
 import os
 import sys
 import argparse
+from typechecker import PyasmTypeChecker 
 
 
 parser = argparse.ArgumentParser()
@@ -16,7 +17,6 @@ parser.add_argument('source', type=str, help="The source file to compile")
 parser.add_argument('out', type=str, help="The output file to write the assembly to", default="out.s")
 
 options = parser.parse_args()
-
 
 variables = dict()
 file_data = open(options.source).read()
@@ -33,6 +33,10 @@ file_data = "\n".join(file_lines)
 
 source_lines = file_data.split("\n")
 tree = ast.parse(file_data)
+
+typeChecker = PyasmTypeChecker(tree, source_lines)
+typeChecker.check()
+
 
 if options.tree or options.treeverbose:
     tree_dump = ast.dump(tree, indent=4, include_attributes=options.treeverbose)
