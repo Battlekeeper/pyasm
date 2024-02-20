@@ -1,6 +1,7 @@
 # Todo
 
 * implement boolean types
+* allow for larger than 16 bit numbers for load imidiate
 * type check in compiler
   * ✅implement type casting (remove implicit typecasts except for binary operations)
 * ❓implement function overloads maybe
