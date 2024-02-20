@@ -1,4 +1,3 @@
-data = bytearray()
 
 RType = {
     "add": "100000",
@@ -87,8 +86,7 @@ def getEncodingType(line):
         return "J"
     else:
         return None
-
-def assemble():
+def assemble(data: bytearray):
     with open("assembly.s", "r") as file:
         for line in file:
             line = " ".join(line.split()).replace(",", "").lower()
@@ -140,9 +138,6 @@ def assemble():
 
                 for i in range(0, len(binary), 8):
                     data.append(int(binary[i:i+8], 2))
+    return data
 
-                
-
-assemble()
-
-open("output.bin", "wb").write(data)
+open("output.bin", "wb").write(assemble(bytearray()))
