@@ -86,6 +86,12 @@ def getEncodingType(line):
         return "J"
     else:
         return None
+
+'''
+The way that the assembler combines each part of the instruction
+is just about the worst way it could be done since it is using strings
+to combine the raw binary values but it works so I'm not going to change it
+'''
 def assemble(data: bytearray):
     with open("assembly.s", "r") as file:
         for line in file:
